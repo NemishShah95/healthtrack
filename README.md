@@ -48,6 +48,12 @@ These need Xcode selected (`sudo xcode-select -s /Applications/Xcode.app/Content
 
 Screenshots of every screen for visual checks: add `TEST_RUNNER_SCREENSHOTS=1` in front of the `xcodebuild test` command (see `HealthTrackUITests/ScreenshotTour.swift`).
 
+## Backing up from the iPhone to this Mac
+
+```sh
+Scripts/backup-from-iphone.sh     # copies the app's database into ~/Documents/HealthTrack Backups/
+```
+
 ## Simulator launch arguments
 
 Set these in Xcode → Product → Scheme → Edit Scheme → Run → Arguments. They only matter in development; the iPhone build never uses them.

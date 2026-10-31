@@ -30,6 +30,16 @@ Deleting an app from the iPhone **permanently deletes its data container**. A re
 Settings → **Data & Backup** → **Export JSON** (full restorable backup) or **Export CSV** (for spreadsheets). Save the file somewhere off the phone, such as AirDrop to your Mac, or iCloud Drive or Files.
 Backups contain personal health information. Don't commit them to git (the repository ignores `HealthTrack-Export-*` files).
 
+### Second safety net: copy the database to a Mac
+
+With the iPhone connected (or on the same Wi-Fi) to a Mac that has installed HealthTrack through Xcode, run:
+
+```sh
+Scripts/backup-from-iphone.sh
+```
+
+It copies HealthTrack's database files into `~/Documents/HealthTrack Backups/<date_time>/` (outside the git project). Close the app first for the cleanest copy. A year of logs is only a few MB.
+
 ## 7. How to restore
 
 Settings → Data & Backup → **Import JSON backup** (arrives in M15). Import adds records that aren't already present (matched by ID), so importing the same file twice doesn't duplicate anything. A backup from a newer HealthTrack version is refused rather than partially imported.

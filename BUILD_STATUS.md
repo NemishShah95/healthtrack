@@ -11,7 +11,7 @@ Next: M19, real data validation against Apple Health.
 | --- | --- |
 | Device | iPhone 16 Pro |
 | Signing | Free Personal Team; HealthKit entitlement granted |
-| Signing expires | **2026-11-07 20:01 UTC** (8 Nov ~01:30 IST). Refresh on or before 7 Nov |
+| Signing expires | **2026-11-07 20:01 UTC** = Sun 8 Nov 00:01 Dubai time (UTC+4). Refresh on or before **Sat 7 Nov** |
 | Database | `SchemaV1` is **frozen**: `schemaV1IsFrozen` fails on any in-place change |
 
 ## Build
