@@ -39,7 +39,7 @@ What doesn't: SwiftData `@Model` macros, the iOS SDK, the simulator, and `xcodeb
 | Decision | Value |
 | --- | --- |
 | Project location | `~/Documents/healthjournal` (the spec suggested `~/Documents/HealthTrack`; the product owner chose this folder) |
-| Git | Local repository only. The future home is the product owner's personal GitHub account. Never push to GitLab |
+| Git | Private GitHub repo `NemishShah95/healthtrack` via SSH alias `github-personal`. Repo-local personal identity. Never push to GitLab |
 | Bundle identifier | `com.nemishshah.healthtrack` (permanent) |
 | Deployment target | iOS 17.0 (the minimum for SwiftData) |
 | Swift language mode | Swift 5 (avoids strict-concurrency friction with SwiftData/HealthKit) |
@@ -68,7 +68,7 @@ What doesn't: SwiftData `@Model` macros, the iOS SDK, the simulator, and `xcodeb
 - [ ] M19 Real data validation (product owner and engineer)
 
 ## Known Issues
-- Commits so far use this Mac's global (work) git identity. For a personal project, run `git config user.email <personal email>` in this folder and re-author the commits before the first push.
+- None.
 
 ## Next Action
 BLOCKED ON: Xcode is not installed.
