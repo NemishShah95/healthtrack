@@ -159,9 +159,11 @@ enum SchemaV1: VersionedSchema {
         var hasCompletedOnboarding: Bool = false
         var installationDate: Date?
         var lastProvisioningRefreshDate: Date?
-        /// Modification date of the app binary at the last launch. A change means Xcode reinstalled the app.
-        var lastSeenBinaryDate: Date?
+        /// App binary date + signing profile expiry at the last launch. A change means Xcode reinstalled the app.
+        var installFingerprint: String?
         var refreshReminderEnabled: Bool = true
+        /// JSON-encoded `ReminderSettings`.
+        var remindersData: Data = Data()
         var lastExportDate: Date?
 
         init() {}
@@ -224,5 +226,10 @@ extension AppSettings {
     var goals: Goals {
         get { (try? JSONDecoder().decode(Goals.self, from: goalsData)) ?? Goals() }
         set { if let data = try? JSONEncoder().encode(newValue) { goalsData = data } }
+    }
+
+    var reminders: ReminderSettings {
+        get { (try? JSONDecoder().decode(ReminderSettings.self, from: remindersData)) ?? ReminderSettings() }
+        set { if let data = try? JSONEncoder().encode(newValue) { remindersData = data } }
     }
 }

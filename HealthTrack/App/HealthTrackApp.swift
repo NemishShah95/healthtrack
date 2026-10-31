@@ -4,13 +4,14 @@ import SwiftUI
 @main
 struct HealthTrackApp: App {
     private let container: Result<ModelContainer, Error>
-    private let health = AppEnvironment.makeHealthProvider()
+    @State private var health = HealthStore(provider: AppEnvironment.makeHealthProvider())
 
     init() {
         let args = AppEnvironment.arguments
         container = Result { try Persistence.makeContainer(inMemory: args.contains("-inMemoryStore")) }
-        if case .success(let c) = container, args.contains("-seedSampleData") {
-            SampleData.seedIfEmpty(c.mainContext)
+        if case .success(let c) = container {
+            if args.contains("-seedSampleData") { SampleData.seedIfEmpty(c.mainContext) }
+            if args.contains("-skipOnboarding") { c.mainContext.settings().hasCompletedOnboarding = true }
         }
     }
 
@@ -20,7 +21,7 @@ struct HealthTrackApp: App {
             case .success(let c):
                 RootView()
                     .modelContainer(c)
-                    .environment(\.health, health)
+                    .environment(health)
             case .failure(let error):
                 DatabaseErrorView(error: error)
             }
@@ -29,6 +30,11 @@ struct HealthTrackApp: App {
 }
 
 struct RootView: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(HealthStore.self) private var health
+    @State private var showOnboarding = false
+
     var body: some View {
         TabView {
             TodayView().tabItem { Label("Today", systemImage: "sun.max") }
@@ -37,6 +43,21 @@ struct RootView: View {
             WeeklyView().tabItem { Label("Weekly", systemImage: "calendar") }
             SettingsView().tabItem { Label("Settings", systemImage: "gearshape") }
         }
+        .onChange(of: scenePhase, initial: true) { _, phase in
+            if phase == .active { Task { await becameActive() } }
+        }
+        .sheet(isPresented: $showOnboarding) { OnboardingView() }
+    }
+
+    /// Runs on launch and every return to the foreground. Everything here is idempotent.
+    private func becameActive() async {
+        let settings = context.settings()
+        ReinstallTracker.recordLaunch(settings)
+        context.syncSupplementLogs()
+        try? context.save()
+        showOnboarding = !settings.hasCompletedOnboarding
+        await health.refresh()
+        await Reminders.reschedule(context)
     }
 }
 

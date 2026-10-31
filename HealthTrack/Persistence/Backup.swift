@@ -142,3 +142,39 @@ extension ModelContext {
         return added
     }
 }
+
+/// Writes export files to a temporary folder for the share sheet.
+enum ExportFiles {
+    enum Kind { case all, json, csv }
+
+    static func make(_ kind: Kind, bundle: ExportBundle, now: Date = .now) throws -> URL {
+        let stamp = now.formatted(.iso8601.year().month().day())
+        let dir = FileManager.default.temporaryDirectory.appending(path: "export-\(UUID().uuidString)", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        if kind == .json {
+            let url = dir.appending(path: "HealthTrack-Export-\(stamp).json")
+            try bundle.jsonData().write(to: url)
+            return url
+        }
+        let folder = dir.appending(path: kind == .all ? "HealthTrack-Export-\(stamp)" : "HealthTrack-Export-\(stamp)-csv",
+                                   directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        if kind == .all { try bundle.jsonData().write(to: folder.appending(path: "backup.json")) }
+        for file in CSVExport.files(for: bundle) {
+            try Data(file.contents.utf8).write(to: folder.appending(path: file.name))
+        }
+        return try zip(folder)
+    }
+
+    /// Zips a folder using the system's built-in "prepare for upload" behaviour. No third-party code.
+    static func zip(_ folder: URL) throws -> URL {
+        let destination = folder.deletingLastPathComponent().appending(path: folder.lastPathComponent + ".zip")
+        var coordinationError: NSError?
+        var copyError: Error?
+        NSFileCoordinator().coordinate(readingItemAt: folder, options: .forUploading, error: &coordinationError) { zipURL in
+            do { try FileManager.default.copyItem(at: zipURL, to: destination) } catch { copyError = error }
+        }
+        if let error = coordinationError ?? copyError { throw error }
+        return destination
+    }
+}

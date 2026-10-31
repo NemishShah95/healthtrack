@@ -30,3 +30,29 @@ extension Goals {
         mealWindows = try c.decodeIfPresent([MealType: MealWindow].self, forKey: .mealWindows) ?? d.mealWindows
     }
 }
+
+/// Which optional reminders are on. Everything is off by default: no spam.
+/// (Supplement reminders are set per supplement; the app-refresh reminder lives in AppSettings.)
+struct ReminderSettings: Codable, Equatable, Sendable {
+    var meals = false
+    var water = false
+    var waterTimes = [TimeOfDay(11), TimeOfDay(15), TimeOfDay(18)]
+    var bedtime = false
+    var checkIn = false
+    var checkInTime = TimeOfDay(21)
+    var backup = false
+}
+
+extension ReminderSettings {
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        let d = ReminderSettings()
+        meals = try c.decodeIfPresent(Bool.self, forKey: .meals) ?? d.meals
+        water = try c.decodeIfPresent(Bool.self, forKey: .water) ?? d.water
+        waterTimes = try c.decodeIfPresent([TimeOfDay].self, forKey: .waterTimes) ?? d.waterTimes
+        bedtime = try c.decodeIfPresent(Bool.self, forKey: .bedtime) ?? d.bedtime
+        checkIn = try c.decodeIfPresent(Bool.self, forKey: .checkIn) ?? d.checkIn
+        checkInTime = try c.decodeIfPresent(TimeOfDay.self, forKey: .checkInTime) ?? d.checkInTime
+        backup = try c.decodeIfPresent(Bool.self, forKey: .backup) ?? d.backup
+    }
+}

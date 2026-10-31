@@ -4,9 +4,9 @@
 
 | Suite | Command | Needs |
 | --- | --- | --- |
-| Core logic | `swift test` | Command Line Tools |
-| App unit + persistence tests | `xcodebuild test -scheme HealthTrack -destination 'platform=iOS Simulator,name=iPhone 16'` | Xcode (from M1) |
-| UI tests | same, `HealthTrackUITests` target | Xcode (from M9) |
+| Logic, database, mock Health | `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test` | Xcode installed (no simulator) |
+| App unit + persistence tests | `xcodebuild test -scheme HealthTrack -destination 'platform=iOS Simulator,name=iPhone 17'` | Xcode + iOS Simulator |
+| UI tests | same, `HealthTrackUITests` target | Xcode + iOS Simulator |
 
 All tests use Swift Testing. Core tests pin the calendar to Europe/London (which has DST) or another named zone, so results don't depend on the machine.
 
@@ -33,10 +33,14 @@ All tests use Swift Testing. Core tests pin the calendar to Europe/London (which
 | Reinstall reminder dates and warning states | ✅ | `ReinstallAndExportTests` |
 | Export serialisation (JSON round trip, CSV parses) | ✅ | `ReinstallAndExportTests` |
 | Old settings/backups decode (missing keys) | ✅ | `ReinstallAndExportTests` |
-| SwiftData CRUD | ⏳ M2 | |
-| Data migrations preserve records | ⏳ M2/M16 | |
-| JSON import restores records (no duplicates) | ⏳ M15 | |
-| HealthKit: denied, partial, no data (mock provider) | ⏳ M3 | |
+| SwiftData CRUD, cascade delete | ✅ | `PersistenceTests` |
+| Reopening the store preserves records (relaunch/upgrade) | ✅ | `PersistenceTests` |
+| Schema V1 → V2 migration | ⏳ when V2 exists | |
+| JSON import restores records, no duplicates | ✅ | `PersistenceTests` |
+| Export files written; CSV zipped | ✅ | `PersistenceTests` |
+| Day records join logs + Health; no-access handling | ✅ | `DayRecordTests` |
+| Sample 90-day data set | ✅ | `PersistenceTests` |
+| Mock Health: full, empty, denied, partial, no stages, one day, deterministic | ✅ | `MockHealthTests` |
 
 ## Data-state scenarios (mock HealthKit provider, M3 onward)
 

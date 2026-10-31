@@ -162,3 +162,23 @@ import Testing
     SampleData.seedIfEmpty(ctx, now: now, calendar: cal)
     #expect(try ctx.fetchCount(FetchDescriptor<Meal>()) == meals)
 }
+
+@MainActor
+@Test func exportFilesAreWrittenAndZipped() throws {
+    let ctx = ModelContext(try Persistence.makeContainer(inMemory: true))
+    ctx.logMeal(.lunch, foods: [.init(name: "dal, rice", grams: 300)])
+    let bundle = ctx.exportBundle(appVersion: "test")
+    let json = try ExportFiles.make(.json, bundle: bundle)
+    #expect(json.lastPathComponent.hasPrefix("HealthTrack-Export-") && json.pathExtension == "json")
+    #expect(try ExportBundle.decode(Data(contentsOf: json)).meals.count == 1)
+    for kind in [ExportFiles.Kind.all, .csv] {
+        let zip = try ExportFiles.make(kind, bundle: bundle)
+        let bytes = try Data(contentsOf: zip)
+        #expect(zip.pathExtension == "zip" && bytes.starts(with: [0x50, 0x4B]))   // "PK" zip signature
+    }
+}
+
+@Test func reminderSettingsDecodeWithMissingKeys() throws {
+    let r = try JSONDecoder().decode(ReminderSettings.self, from: Data(#"{"water": true}"#.utf8))
+    #expect(r.water && !r.meals && r.waterTimes.count == 3)
+}

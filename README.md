@@ -16,27 +16,47 @@ Nothing leaves the device: no accounts, no network calls, no analytics, no third
 
 ```text
 .
+├── HealthTrack.xcodeproj      Open this in Xcode
 ├── HealthTrack/               App source
-│   └── Core/                  Pure logic (Foundation only): scoring, sleep, meals, supplements, export
+│   ├── App/                   Entry point, onboarding, reminders
+│   ├── Core/                  Pure logic: scoring, sleep, meals, supplements, export format
+│   ├── Health/                Apple Health reading, plus a mock for the simulator
+│   ├── Persistence/           SwiftData database, backup/restore, sample data
+│   ├── Features/              Today · Log · Trends · Weekly · Settings screens
+│   └── Shared/                Reusable views
 ├── HealthTrackTests/          Unit tests (Swift Testing)
-│   └── Core/                  Core logic tests: run with `swift test`
+├── HealthTrackUITests/        Launch/UI tests
 ├── Documentation/             Original build spec and the refresh procedure
-├── Package.swift              Lets `swift test` run the Core tests without Xcode
+├── Package.swift              Lets `swift test` run logic and database tests without a simulator
 ├── ARCHITECTURE.md            Layers, data ownership, scoring formulas, methodology
 ├── TEST_PLAN.md               What is tested and how
 ├── DATA_SAFETY.md             Where data lives and how not to lose it
 └── TRANSFER_TO_PERSONAL_MAC.md  Installing on your iPhone from your personal Mac
 ```
 
-The Xcode project (`HealthTrack.xcodeproj`), UI, HealthKit and SwiftData layers are added from milestone M1 onward.
-
 ## Running the tests
 
-Core logic, with no Xcode needed (Command Line Tools are enough):
-
 ```sh
-swift test
+# Logic, database and mock Health data, in about a second (no simulator):
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
+
+# Everything, including UI tests, in the simulator:
+xcodebuild test -project HealthTrack.xcodeproj -scheme HealthTrack -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
+
+If you ran `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`, the `DEVELOPER_DIR=` part isn't needed.
+
+## Simulator launch arguments
+
+Set these in Xcode → Product → Scheme → Edit Scheme → Run → Arguments. They only matter in development; the iPhone build never uses them.
+
+| Argument | Effect |
+| --- | --- |
+| `-seedSampleData` | Fills an empty database with 90 days of realistic meals, water, supplements and check-ins |
+| `-mockHealth full` / `empty` / `denied` / `partial` / `noStages` / `unavailable` | Picks the fake Apple Health scenario (the simulator defaults to `full`) |
+| `-inMemoryStore` | Uses a throwaway database |
+| `-skipOnboarding` | Skips the first-launch screen |
+| `-refreshDaysAgo 5` | Pretends the last Xcode refresh was 5 days ago, to see the refresh warning |
 
 ## Key facts that must not change
 

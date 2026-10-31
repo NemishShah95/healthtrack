@@ -17,14 +17,3 @@ enum AppEnvironment {
         #endif
     }
 }
-
-private struct HealthProviderKey: EnvironmentKey {
-    static let defaultValue: any HealthDataProvider = MockHealthDataProvider(scenario: .empty)
-}
-
-extension EnvironmentValues {
-    var health: any HealthDataProvider {
-        get { self[HealthProviderKey.self] }
-        set { self[HealthProviderKey.self] = newValue }
-    }
-}
