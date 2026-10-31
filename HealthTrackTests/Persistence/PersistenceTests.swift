@@ -148,3 +148,17 @@ import Testing
         #expect(target.exportBundle(appVersion: "test", now: bundle.exportedAt) == bundle)
     }
 }
+
+@MainActor
+@Test func sampleDataSeeds90DaysOnceOnly() throws {
+    let cal = calendar()
+    let ctx = ModelContext(try Persistence.makeContainer(inMemory: true))
+    let now = date("2026-10-31 12:00", cal)
+    SampleData.seedIfEmpty(ctx, now: now, calendar: cal)
+    let meals = try ctx.fetchCount(FetchDescriptor<Meal>())
+    #expect(meals > 200)
+    #expect(try ctx.fetchCount(FetchDescriptor<Supplement>()) == 5)
+    #expect(ctx.supplementLogs(from: "2026-08-03", through: "2026-10-31").count > 350)
+    SampleData.seedIfEmpty(ctx, now: now, calendar: cal)
+    #expect(try ctx.fetchCount(FetchDescriptor<Meal>()) == meals)
+}
