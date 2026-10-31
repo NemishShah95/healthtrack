@@ -75,7 +75,7 @@ struct WeeklyReview: Equatable, Sendable {
         workouts = records.reduce(0) { $0 + $1.workouts }
         workoutTarget = goals.workoutsPerWeek
         averageSteps = facts.compactMap(\.steps).map(Double.init).mean
-        waterTargetDays = facts.filter { $0.waterML >= goals.waterTargetML }.count
+        waterTargetDays = facts.filter { ($0.waterML ?? 0) >= goals.waterTargetML }.count
         supplementAdherence = SupplementAdherence.rate(facts.flatMap(\.supplementStatuses))
         averageEnergy = records.compactMap(\.energy).map(Double.init).mean
         let protein = records.compactMap(\.protein)

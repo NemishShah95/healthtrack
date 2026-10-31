@@ -115,7 +115,7 @@ struct SleepDetail: View {
                 Image(systemName: ok ? "checkmark.circle.fill" : "exclamationmark.circle")
                 Text(t.formatted())
             }
-            .foregroundStyle(ok ? .green : .orange)
+            .foregroundStyle(ok ? Palette.good : Palette.warn)
         }
         .accessibilityValue("\(t.formatted()), target \(goal.formatted()), \(ok ? "on target" : "off target")")
     }

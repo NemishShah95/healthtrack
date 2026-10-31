@@ -17,6 +17,24 @@ enum Format {
     }
 }
 
+extension Color {
+    /// Different shades for light and dark mode.
+    static func adaptive(light: UIColor, dark: UIColor) -> Color {
+        Color(UIColor { $0.userInterfaceStyle == .dark ? dark : light })
+    }
+}
+
+/// Category and status colours. Light-mode shades are deepened where the system colour
+/// is too pale on white for text or icons (WCAG contrast); dark mode keeps the system colours.
+enum Palette {
+    static let good = Color.adaptive(light: UIColor(red: 0.118, green: 0.498, blue: 0.275, alpha: 1), dark: .systemGreen)
+    static let warn = Color.adaptive(light: UIColor(red: 0.761, green: 0.369, blue: 0, alpha: 1), dark: .systemOrange)
+    static let bad = Color.adaptive(light: UIColor(red: 0.78, green: 0.11, blue: 0.11, alpha: 1), dark: .systemRed)
+    static let meals = warn
+    static let steps = good
+    static let checkIn = Color.adaptive(light: UIColor(red: 0.055, green: 0.486, blue: 0.549, alpha: 1), dark: .systemTeal)
+}
+
 extension Calendar {
     /// A timestamp on `day`: now if it's today, otherwise the same clock time on that day.
     func timestamp(on day: Date, now: Date = .now) -> Date {
@@ -38,31 +56,48 @@ struct Tile<Value: View, Accessory: View>: View {
     @ViewBuilder var accessory: Accessory
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Label(title, systemImage: systemImage)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(tint)
-            value
-                .font(.title3.bold())
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.7)
-            Spacer(minLength: 0)
-            HStack(alignment: .bottom, spacing: 4) {
-                if let detail {
-                    Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+        ZStack(alignment: .bottomTrailing) {
+            Button(action: open) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Image(systemName: systemImage).foregroundStyle(tint)
+                        Text(title)
+                    }
+                    .font(.subheadline.weight(.medium))
+                    value
+                        .font(.title3.bold())
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.7)
+                    Spacer(minLength: 0)
+                    HStack(alignment: .bottom, spacing: 4) {
+                        if let detail {
+                            Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                        }
+                        Spacer(minLength: 0)
+                        accessory.hidden()   // reserves room for the real action drawn on top
+                    }
                 }
-                Spacer(minLength: 0)
-                accessory
+                .padding(14)
+                .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
+                .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 20))
+                .contentShape(.rect(cornerRadius: 20))
             }
+            .buttonStyle(.plain)
+            .accessibilityHint("Opens \(title.lowercased()) details")
+            accessory.padding(14)
         }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 20))
-        .contentShape(.rect(cornerRadius: 20))
-        .onTapGesture(perform: open)
-        .accessibilityElement(children: .contain)
-        .accessibilityAction(named: "Open \(title)", open)
+    }
+}
+
+/// What a tile shows before there's anything to show. Words, not a dash: clearer, and a thin dash
+/// reads as low contrast.
+struct Placeholder: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+
+    var body: some View {
+        Text(text).foregroundStyle(.secondary)
     }
 }
 
@@ -74,13 +109,17 @@ struct PillButton: View {
     let action: () -> Void
 
     var body: some View {
-        Button(title, action: action)
-            .font(.caption.weight(.semibold))
-            .buttonStyle(.borderedProminent)
-            .buttonBorderShape(.capsule)
-            .controlSize(.small)
-            .tint(tint)
-            .accessibilityLabel(accessibilityLabel ?? title)
+        Button(action: action) {
+            Text(title).foregroundStyle(.black)
+        }
+        .font(.caption.weight(.semibold))
+        .buttonStyle(.borderedProminent)
+        .buttonBorderShape(.capsule)
+        .controlSize(.small)
+        .tint(tint)
+        .frame(minHeight: 44)          // full-size tap target around a small-looking pill
+        .contentShape(.rect)
+        .accessibilityLabel(accessibilityLabel ?? title)
     }
 }
 
@@ -144,9 +183,9 @@ extension MealTiming {
 
     var color: Color {
         switch self {
-        case .onTime: .green
-        case .early, .late: .orange
-        case .skipped: .red
+        case .onTime: Palette.good
+        case .early, .late: Palette.warn
+        case .skipped: Palette.bad
         case .pending: .secondary
         }
     }
@@ -164,9 +203,9 @@ extension SupplementStatus {
 
     var color: Color {
         switch self {
-        case .taken: .green
-        case .skipped: .orange
-        case .missed: .red
+        case .taken: Palette.good
+        case .skipped: Palette.warn
+        case .missed: Palette.bad
         case .pending: .secondary
         }
     }

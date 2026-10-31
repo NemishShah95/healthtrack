@@ -204,16 +204,16 @@ enum TrendSeries {
 
         // Manual habits only count from the first day anything was logged.
         let records = context.dayRecords(from: prevStart, through: today, health: health, goals: goals, now: now, calendar: calendar)
-        let tracked = context.trackingStart(calendar: calendar).map { DayKey.of($0, calendar: calendar) } ?? DayKey.of(today, calendar: calendar)
+        let tracked = context.trackingStart(calendar: calendar).map { DayKey.of($0, calendar: calendar) }
         func habit(_ value: (DayRecord) -> Double?) -> [String: Double] {
             var out: [String: Double] = [:]
             for r in records {
                 let key = DayKey.of(r.day, calendar: calendar)
-                if key >= tracked, let v = value(r) { out[key] = v * 100 }
+                if let tracked, key >= tracked, let v = value(r) { out[key] = v * 100 }
             }
             return out
         }
-        let water = habit { BehaviorScore.ratio($0.facts.waterML, goals.waterTargetML) }
+        let water = habit { $0.facts.waterML.flatMap { BehaviorScore.ratio($0, goals.waterTargetML) } }
         let mealsOnTime = habit { MealRoutine.consistency($0.facts.mealTimings.values) }
         let supplements = habit { SupplementAdherence.rate($0.facts.supplementStatuses) }
         let energy = Dictionary(records.compactMap { r in r.energy.map { (DayKey.of(r.day, calendar: calendar), Double($0)) } },

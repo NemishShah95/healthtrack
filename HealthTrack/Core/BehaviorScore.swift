@@ -27,7 +27,8 @@ struct DayFacts: Sendable {
     var wakeTime: TimeOfDay?
     var asleepMinutes: Double?
     var mealTimings: [MealType: MealTiming] = [:]
-    var waterML = 0
+    /// nil before you started tracking; 0 means tracked but nothing drunk.
+    var waterML: Int?
     var supplementStatuses: [SupplementStatus] = []
     var steps: Int?
     var workoutsInLast7Days: Int?
@@ -44,7 +45,7 @@ enum BehaviorScore {
         c[.meals] = MealRoutine.consistency(f.mealTimings.values)
         // Rolling 7 days so rest days aren't punished.
         c[.exercise] = f.workoutsInLast7Days.flatMap { ratio($0, goals.workoutsPerWeek) }
-        c[.hydration] = ratio(f.waterML, goals.waterTargetML)
+        c[.hydration] = f.waterML.flatMap { ratio($0, goals.waterTargetML) }
         c[.supplements] = SupplementAdherence.rate(f.supplementStatuses)
         c[.movement] = f.steps.flatMap { ratio($0, goals.stepTarget) }
         return c

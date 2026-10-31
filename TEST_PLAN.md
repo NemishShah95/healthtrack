@@ -52,12 +52,20 @@ All tests use Swift Testing. Core tests pin the calendar to Europe/London (which
 
 No data · one day · 7 days · 30 days · 90 days · partial permissions · denied permissions · missing sleep stages · multiple workouts · missed vitamins · skipped meals · many food items · long supplement names.
 
+## Accessibility
+
+`testAccessibilityAuditOnEveryTab` runs Apple's automated audit (VoiceOver labels, contrast, hit targets, clipped text) on every tab. Deliberately skipped, with reasons in the test:
+- "Contrast nearly passed": Apple's own secondary-label grey, the same as in Apple's apps.
+- Contrast on anything under the translucent tab bar: the audit measures through the blur.
+- Contrast findings with no element attached: unattributable system chrome (logged, not failed).
+- The Dynamic Type sub-check: it flags plain system list rows. Large text is checked visually (accessibility-large on iPhone 17e).
+
 ## Simulator QA checklist (M16)
 
-- [x] Smallest available iPhone (17e) · [ ] largest (18 Pro Max)
+- [x] Smallest available iPhone (17e) and largest (18 Pro Max)
 - [x] Light and Dark Mode
 - [x] Dynamic Type at accessibility-large (two truncations fixed)
-- [~] Empty states on every tab (UI test opens each with no data; visual pass pending)
+- [x] Empty states on every tab (brand-new install, screenshot tour `TEST_RUNNER_SCREENSHOTS=empty`)
 - [ ] Long text: food names, notes, supplement names
 - [ ] Many meal entries, many supplements
 - [x] 90-day trends render

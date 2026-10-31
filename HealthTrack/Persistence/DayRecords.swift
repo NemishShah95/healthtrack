@@ -9,14 +9,21 @@ extension ModelContext {
         return (try? fetch(d)) ?? []
     }
 
-    /// The first day with any manual log. Earlier days have no manual facts, so they aren't scored
-    /// as "skipped meals" or "no water".
+    /// The first day you logged anything yourself. Earlier days (including the hours before a fresh
+    /// install) have no manual facts, so they're never scored as "skipped meals" or "no water".
     func trackingStart(calendar: Calendar = .current) -> Date? {
-        var meal = FetchDescriptor<Meal>(sortBy: [SortDescriptor(\.timestamp)])
-        meal.fetchLimit = 1
-        var water = FetchDescriptor<WaterEntry>(sortBy: [SortDescriptor(\.timestamp)])
-        water.fetchLimit = 1
-        let firsts = [try? fetch(meal).first?.timestamp, try? fetch(water).first?.timestamp].compactMap { $0 }
+        func first<T: PersistentModel>(_ sort: SortDescriptor<T>, _ date: (T) -> Date) -> Date? {
+            var d = FetchDescriptor<T>(sortBy: [sort])
+            d.fetchLimit = 1
+            return (try? fetch(d).first).flatMap { $0.map(date) }
+        }
+        let firsts = [
+            first(SortDescriptor(\Meal.timestamp)) { $0.timestamp },
+            first(SortDescriptor(\WaterEntry.timestamp)) { $0.timestamp },
+            first(SortDescriptor(\ProteinEntry.timestamp)) { $0.timestamp },
+            first(SortDescriptor(\GymSession.timestamp)) { $0.timestamp },
+            first(SortDescriptor(\DailyCheckIn.createdAt)) { $0.createdAt },
+        ].compactMap { $0 }
         return firsts.min().map { calendar.startOfDay(for: $0) }
     }
 
@@ -44,7 +51,7 @@ extension ModelContext {
 
         let firstKey = DayKey.of(first, calendar: calendar), lastKey = DayKey.of(lastDay, calendar: calendar)
         let todayKey = DayKey.of(now, calendar: calendar)
-        let startKey = trackingStart(calendar: calendar).map { DayKey.of($0, calendar: calendar) } ?? todayKey
+        let startKey = trackingStart(calendar: calendar).map { DayKey.of($0, calendar: calendar) }   // nil: nothing logged yet
         let meals = Dictionary(grouping: meals(from: firstKey, through: lastKey), by: \.day)
         let water = Dictionary(grouping: water(from: first, to: afterLast)) { DayKey.of($0.timestamp, calendar: calendar) }
         let doses = Dictionary(grouping: supplementLogs(from: firstKey, through: lastKey), by: \.day)
@@ -71,7 +78,7 @@ extension ModelContext {
                 f.wakeTime = TimeOfDay(of: n.finalWake, in: calendar)
                 f.asleepMinutes = n.asleep / 60
             }
-            if key >= startKey {
+            if let startKey, key >= startKey {
                 let dayMeals = meals[key] ?? []
                 let nowTime = key == todayKey ? TimeOfDay(of: now, in: calendar) : nil
                 for type in MealType.targeted {

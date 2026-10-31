@@ -45,6 +45,17 @@ import Testing
         #expect(records[2].workouts == 1)
     }
 
+    @Test func freshInstallJudgesNothingUntilTheFirstLog() throws {
+        let ctx = try context()
+        let late = date("2026-10-28 22:40", cal)   // installed late in the evening
+        let before = try #require(ctx.dayRecords(from: late, through: late, health: HealthSnapshot(), goals: Goals(), now: late, calendar: cal).first)
+        #expect(before.facts.mealTimings.isEmpty)
+        #expect(BehaviorScore.components(before.facts, goals: Goals()).isEmpty)
+        ctx.logProtein(25, at: late, now: late)     // any log starts tracking
+        let after = try #require(ctx.dayRecords(from: late, through: late, health: HealthSnapshot(), goals: Goals(), now: late, calendar: cal).first)
+        #expect(after.facts.mealTimings[.dinner] == .skipped)
+    }
+
     @Test func noHealthAccessLeavesHealthComponentsOut() throws {
         let ctx = try context()
         ctx.logWater(2500, at: now, now: now)

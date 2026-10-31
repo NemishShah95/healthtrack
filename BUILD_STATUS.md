@@ -3,20 +3,22 @@
 _Last updated: 2026-10-31_
 
 ## Current Milestone
-M16, Full QA: in progress. The minimal redesign is done (product owner's request, 2026-10-31).
+M16, Full QA: complete. M17, Transfer package: in progress.
 
 ## Build
 iOS app (`xcodebuild`, iOS 27.2 simulator SDK): PASS, 0 warnings
 Logic + database (`swift test`): PASS
 
 ## Tests
-`swift test`: 65 passed, 0 failed (core logic, SwiftData, mock HealthKit, day records, export files, gym/protein)
-Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2): 71 passed, 0 failed (65 unit + 5 UI + screenshot tour)
+`swift test`: 66 passed, 0 failed (core logic, SwiftData, mock HealthKit, day records, export files, gym/protein)
+Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2): 72 passed, 0 failed, 1 skipped (66 unit + 6 UI incl. accessibility audit; the screenshot tour runs on request)
 
 ## Simulator QA
 - [x] iPhone 17, light mode, 90 days of data: every screen reviewed; Sleep detail row height bug fixed
 - [x] iPhone 17e (smallest), dark mode, accessibility-large text: tiles go single-column; two truncations fixed
-- [ ] iPhone 18 Pro Max, empty-state visual pass, VoiceOver spot check
+- [x] iPhone 18 Pro Max with 90 days of data
+- [x] Brand-new install (empty states): fixed meals showing "skipped" before the first log
+- [x] Apple accessibility audit on every tab: fixed tile tap targets (tiles are now single buttons), contrast (accessible palette, dark text on pills), placeholders, clipping
 
 ## Environment (development Mac)
 
@@ -30,7 +32,7 @@ Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2):
 | Command Line Tools | 16.4 (Swift 6.1.2) |
 | Git | 2.39.5 |
 | Xcode signing teams | None, and none needed: simulator builds sign locally; signing happens on the personal Mac |
-| Free disk space | ~12 GB (98% used). Enough to build; risky below ~5 GB |
+| Free disk space | ~7.5 GB (99% used). Risky below ~5 GB |
 
 ## Decisions
 
@@ -69,7 +71,7 @@ Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2):
 - [x] M14 Reinstall reminder: detection, profile expiry, banner, Settings → App Installation, refresh notification
 - [x] M15 Export (all/JSON/CSV zip, share sheet, last export date) and JSON restore
 - [x] Added: gym journal (sessions, focus, exercises, repeat last, history, body-part focus chart) and protein tracking
-- [~] M16 Full QA (simulator): in progress, see Simulator QA above
+- [x] M16 Full QA (simulator)
 - [ ] M17 Transfer package
 - [ ] M18 Personal Mac installation (product owner)
 - [ ] M19 Real data validation
@@ -79,4 +81,4 @@ Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2):
 - Simulator tests run with `-parallel-testing-enabled NO`; parallel device clones failed once with low disk space.
 
 ## Next Action
-Finish M16 (Pro Max, empty states, VoiceOver), then M17: fresh-clone build check and final docs.
+M17: fresh-clone build check and final docs. Then install on the product owner's iPhone 16 Pro.

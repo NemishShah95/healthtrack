@@ -12,6 +12,12 @@ final class LaunchTests: XCTestCase {
         return app
     }
 
+    /// Today tiles are single buttons whose label starts with the tile name.
+    @MainActor
+    private func tile(_ app: XCUIApplication, _ name: String) -> XCUIElement {
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", name)).firstMatch
+    }
+
     @MainActor
     private func visitEveryTab(_ app: XCUIApplication) {
         for tab in Self.tabs {
@@ -38,15 +44,15 @@ final class LaunchTests: XCTestCase {
         let add = app.buttons["Add 250 millilitres"].firstMatch
         XCTAssertTrue(add.waitForExistence(timeout: 10))
         add.tap()
-        XCTAssertTrue(app.staticTexts["0.2 / 2.5 L"].waitForExistence(timeout: 5)
-                      || app.staticTexts["0.3 / 2.5 L"].exists)
+        let water = tile(app, "Water").label
+        XCTAssertTrue(water.contains("0.2 / 2.5 L") || water.contains("0.3 / 2.5 L"), water)
     }
 
     @MainActor
     func testLogGymSessionAndProteinFromToday() {
         let app = launch(["-mockHealth", "empty"])
         app.buttons["Add 20 grams of protein"].firstMatch.tap()
-        XCTAssertTrue(app.staticTexts["20 / 100 g"].waitForExistence(timeout: 5))
+        XCTAssertTrue(tile(app, "Protein").label.contains("20 / 100 g"))
 
         app.buttons["Log a gym session"].firstMatch.tap()
         app.buttons["Legs"].firstMatch.tap()
@@ -54,8 +60,31 @@ final class LaunchTests: XCTestCase {
         exercises.tap()
         exercises.typeText("Squat 5x5 100 kg")
         app.buttons["Save"].tap()
-        XCTAssertTrue(app.staticTexts["Legs"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["1 exercise"].exists)
+        XCTAssertTrue(tile(app, "Gym").waitForExistence(timeout: 5))
+        XCTAssertTrue(tile(app, "Gym").label.contains("Legs") && tile(app, "Gym").label.contains("1 exercise"))
+    }
+
+    /// Apple's automated accessibility audit (VoiceOver labels, contrast, hit targets, clipped text) on every tab.
+    @MainActor
+    func testAccessibilityAuditOnEveryTab() throws {
+        let app = launch(["-mockHealth", "full", "-seedSampleData"])
+        for tab in Self.tabs {
+            app.tabBars.buttons[tab].tap()
+            _ = app.navigationBars[tab].waitForExistence(timeout: 5)
+            // Skipped on purpose (see TEST_PLAN.md):
+            //  - "nearly passed" contrast: Apple's own secondary-label grey;
+            //  - contrast on anything under the translucent tab bar: the audit measures through the blur;
+            //  - contrast findings with no element: unattributable system chrome (logged, not failed);
+            //  - the Dynamic Type check: it flags plain system list rows too. Large text is checked visually.
+            let tabBar = app.tabBars.firstMatch.frame
+            try app.performAccessibilityAudit(for: .all.subtracting(.dynamicType)) { issue in
+                let isContrast = issue.auditType == .contrast
+                let ignore = issue.compactDescription == "Contrast nearly passed"
+                    || (isContrast && (issue.element.map { $0.frame.intersects(tabBar) } ?? true))
+                print("A11Y|\(ignore ? "ignored" : "FAILED")|\(tab)|\(issue.compactDescription)|\(issue.element?.label ?? "(no element)")")
+                return ignore
+            }
+        }
     }
 
     @MainActor
@@ -67,7 +96,7 @@ final class LaunchTests: XCTestCase {
         XCTAssertTrue(app.navigationBars["Yesterday"].waitForExistence(timeout: 5))
         app.swipeRight()
         XCTAssertFalse(app.navigationBars["Yesterday"].waitForExistence(timeout: 2))   // moved further back
-        app.staticTexts["Water"].firstMatch.tap()                                         // tile opens its page
+        tile(app, "Water").tap()                                                          // tile opens its page
         XCTAssertTrue(app.buttons["Add 500 millilitres"].waitForExistence(timeout: 5))
     }
 }

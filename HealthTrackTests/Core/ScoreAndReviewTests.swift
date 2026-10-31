@@ -23,8 +23,9 @@ import Testing
     let score = try #require(BehaviorScore.score([.hydration: 1, .meals: 0.5]))
     #expect(abs(score - 25.0 / 35.0) < 1e-9)
     #expect(BehaviorScore.score([:]) == nil)
-    // A day with no HealthKit data and nothing logged: only water (0 ml) is judged.
-    #expect(BehaviorScore.components(DayFacts(), goals: Goals()) == [.hydration: 0])
+    // Nothing tracked at all: nothing is judged. Tracked but no water: water counts as 0.
+    #expect(BehaviorScore.components(DayFacts(), goals: Goals()).isEmpty)
+    #expect(BehaviorScore.components(DayFacts(waterML: 0), goals: Goals()) == [.hydration: 0])
 }
 
 @Test func sleepComponentHandlesBedtimeAfterMidnight() {

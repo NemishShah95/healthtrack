@@ -77,7 +77,7 @@ Stages are wearable estimates. The app never says more or less REM is "better". 
 | Supplements | 10 | taken ÷ scheduled (skipped and missed count as not taken) | nothing scheduled |
 | Daily movement | 10 | min(1, steps ÷ step target) | no step data, or target 0 |
 
-**Score = Σ(weight × value) ÷ Σ(weight), over the components present.** Missing data never counts as failure. Logging nothing still counts: 0 ml of water is a value of 0. Weights are a parameter (`score(_:weights:)`), ready for user-configurable weights later.
+**Score = Σ(weight × value) ÷ Σ(weight), over the components present.** Missing data never counts as failure. Days before your first log of anything aren't judged at all; after that, 0 ml of water is a value of 0. Weights are a parameter (`score(_:weights:)`), ready for user-configurable weights later.
 
 Defaults: bedtime 23:00, wake 07:00, ±30 min, 7 h sleep, 2.5 L water, 8,000 steps, 4 workouts/week. Meal windows: breakfast 07:30–09:30, lunch 12:00–14:00, dinner 19:00–21:00. All are editable.
 

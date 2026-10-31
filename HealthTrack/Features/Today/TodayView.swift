@@ -84,10 +84,10 @@ private struct DayStrip: View {
                     VStack(spacing: 2) {
                         Text(day.formatted(.dateTime.weekday(.abbreviated)))
                             .font(.caption2)
-                            .foregroundStyle(selected ? Color.white.opacity(0.85) : .secondary)
+                            .foregroundStyle(selected ? Color(.systemBackground) : .secondary)
                         Text(day.formatted(.dateTime.day()))
                             .font(.subheadline.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(selected ? Color.white : .primary)
+                            .foregroundStyle(selected ? Color(.systemBackground) : .primary)
                     }
                     .frame(maxWidth: .infinity, minHeight: 48)
                     .background(selected ? Color.accentColor : .clear, in: .rect(cornerRadius: 14))
@@ -186,9 +186,13 @@ private struct DayDashboard: View {
     private func gymTile() -> some View {
         let exercises = gym.reduce(0) { $0 + $1.exercises.count }
         return Tile(title: "Gym", systemImage: "dumbbell.fill", tint: .red,
-                    detail: gym.isEmpty ? "Not logged" : (gym.count > 1 ? "\(gym.count) sessions" : "\(exercises) exercise\(exercises == 1 ? "" : "s")"),
+                    detail: gym.isEmpty ? nil : (gym.count > 1 ? "\(gym.count) sessions" : "\(exercises) exercise\(exercises == 1 ? "" : "s")"),
                     open: { open(.gym(day)) }) {
-            Text(gym.last.map { $0.focus.isEmpty ? "Workout" : $0.focus.map(\.title).joined(separator: ", ") } ?? "—")
+            if let last = gym.last {
+                Text(last.focus.isEmpty ? "Workout" : last.focus.map(\.title).joined(separator: ", "))
+            } else {
+                Placeholder("Not logged")
+            }
         } accessory: {
             if gym.isEmpty {
                 PillButton(title: "+ Log", tint: .red, accessibilityLabel: "Log a gym session") { editingGym = .new(day: day) }
@@ -199,22 +203,22 @@ private struct DayDashboard: View {
     private func consistency(_ components: [ScoreComponent: Double]) -> some View {
         let score = BehaviorScore.score(components)
         let onTrack = components.values.filter { $0 >= WeeklyReview.attentionThreshold }.count
-        return HStack(spacing: 16) {
-            Ring(value: score)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Daily consistency").font(.headline)
-                Text(components.isEmpty ? "Log something to get started" : "\(onTrack) of \(components.count) habits on track")
-                    .font(.subheadline).foregroundStyle(.secondary)
+        return Button { open(.consistency(day)) } label: {
+            HStack(spacing: 16) {
+                Ring(value: score)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Daily consistency").font(.headline)
+                    Text(components.isEmpty ? "Log something to get started" : "\(onTrack) of \(components.count) habits on track")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
             }
-            Spacer()
-            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            .padding(14)
+            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 20))
+            .contentShape(.rect(cornerRadius: 20))
         }
-        .padding(14)
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 20))
-        .contentShape(.rect(cornerRadius: 20))
-        .onTapGesture { open(.consistency(day)) }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
+        .buttonStyle(.plain)
     }
 
     private func sleepTile(goals: Goals) -> some View {
@@ -229,9 +233,9 @@ private struct DayDashboard: View {
             if n.asleep / 60 < Double(goals.sleepTargetMinutes) { notes.append("Short") }
         }
         return Tile(title: "Sleep", systemImage: "bed.double.fill", tint: .indigo,
-                    detail: night == nil ? "No data" : (notes.isEmpty ? "On target" : notes.prefix(2).joined(separator: " · ")),
+                    detail: night == nil ? nil : (notes.isEmpty ? "On target" : notes.prefix(2).joined(separator: " · ")),
                     open: { open(.sleep(day)) }) {
-            Text(night.map { Format.duration($0.asleep) } ?? "—")
+            if let night { Text(Format.duration(night.asleep)) } else { Placeholder("No data") }
         } accessory: { EmptyView() }
     }
 
@@ -254,7 +258,7 @@ private struct DayDashboard: View {
         let logged = Set(meals.map(\.mealType))
         let next = MealRoutine.nextMeal(logged: logged, windows: goals.mealWindows,
                                         now: isToday ? TimeOfDay(of: .now, in: .current) : TimeOfDay(23, 59))
-        return Tile(title: "Meals", systemImage: "fork.knife", tint: .orange,
+        return Tile(title: "Meals", systemImage: "fork.knife", tint: Palette.meals,
                     detail: next == nil ? "All logged" : nil, open: { open(.meals(day)) }) {
             HStack(spacing: 10) {
                 ForEach(MealType.targeted, id: \.self) { type in
@@ -284,8 +288,8 @@ private struct DayDashboard: View {
         let taken = statuses.filter { $0 == .taken }.count
         let open = statuses.contains { $0 == .pending || $0 == .missed }
         return Tile(title: "Supplements", systemImage: "pills.fill", tint: .purple,
-                    detail: statuses.isEmpty ? "None today" : "taken", open: { self.open(.supplements(day)) }) {
-            Text(statuses.isEmpty ? "—" : "\(taken)/\(statuses.count)")
+                    detail: statuses.isEmpty ? nil : "taken", open: { self.open(.supplements(day)) }) {
+            if statuses.isEmpty { Placeholder("None today") } else { Text("\(taken)/\(statuses.count)") }
         } accessory: {
             if open {
                 PillButton(title: "All ✓", tint: .purple, accessibilityLabel: "Mark all supplements taken") {
@@ -298,15 +302,15 @@ private struct DayDashboard: View {
     private func activityTile(goals: Goals) -> some View {
         let s = health.snapshot
         let workouts = context.workoutsThisWeek(containing: day, health: s, goals: goals)
-        return Tile(title: "Steps", systemImage: "figure.walk", tint: .green,
+        return Tile(title: "Steps", systemImage: "figure.walk", tint: Palette.steps,
                     detail: "\(workouts)/\(goals.workoutsPerWeek) workouts this week", open: { open(.activity(day)) }) {
-            Text(s.steps[key].map { $0.formatted() } ?? "—")
+            if let steps = s.steps[key] { Text(steps.formatted()) } else { Placeholder("No data") }
         } accessory: { EmptyView() }
     }
 
     private func checkInTile(_ c: DailyCheckIn?) -> some View {
         let done = c?.energy != nil || c?.mood != nil || c?.stress != nil
-        return Tile(title: "Check-in", systemImage: "face.smiling", tint: .teal,
+        return Tile(title: "Check-in", systemImage: "face.smiling", tint: Palette.checkIn,
                     detail: done ? "Energy · Mood · Stress" : "Three taps", open: { open(.checkIn(day)) }) {
             if done {
                 Text([c?.energy, c?.mood, c?.stress].map { $0.map(String.init) ?? "–" }.joined(separator: " · "))

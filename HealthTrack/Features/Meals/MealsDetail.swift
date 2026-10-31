@@ -34,7 +34,7 @@ struct MealsDetail: View {
                         }
                     }
                     .buttonStyle(.bordered)
-                    .tint(.orange)
+                    .tint(Palette.meals)
                 }
                 Button("Add meal with foods…", systemImage: "square.and.pencil") { editing = .new(day: day, type: nil) }
             } footer: {

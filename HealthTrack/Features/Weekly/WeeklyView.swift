@@ -50,12 +50,16 @@ private struct WeeklyContent: View {
                         Ring(value: r.consistency, size: 84, lineWidth: 10)
                         VStack(alignment: .leading, spacing: 6) {
                             if let best = r.bestHabit {
-                                Label("Best: \(best.title)", systemImage: "star.fill").foregroundStyle(.green)
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Image(systemName: "star.fill").foregroundStyle(Palette.good).accessibilityHidden(true)
+                                    Text("Best: \(best.title)").fixedSize(horizontal: false, vertical: true)
+                                }
                             }
-                            if let first = r.needsAttention.first {
-                                Label("Watch: \(r.needsAttention.map(\.title).joined(separator: ", "))", systemImage: "eye")
-                                    .foregroundStyle(.orange)
-                                    .accessibilityLabel("Needs attention: \(first.title)")
+                            if !r.needsAttention.isEmpty {
+                                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                    Image(systemName: "eye").foregroundStyle(Palette.warn).accessibilityHidden(true)
+                                    Text("Watch: \(r.needsAttention.map(\.title).joined(separator: ", "))").fixedSize(horizontal: false, vertical: true)
+                                }
                             } else if r.days > 0 {
                                 Label("Nothing needs attention", systemImage: "checkmark").foregroundStyle(.secondary)
                             }

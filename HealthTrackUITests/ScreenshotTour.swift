@@ -6,9 +6,12 @@ import XCTest
 final class ScreenshotTour: XCTestCase {
     @MainActor
     func testCaptureEveryTab() throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["SCREENSHOTS"] != nil, "Set TEST_RUNNER_SCREENSHOTS=1")
+        let mode = ProcessInfo.processInfo.environment["SCREENSHOTS"]
+        try XCTSkipUnless(mode != nil, "Set TEST_RUNNER_SCREENSHOTS=1 (or =empty for a brand-new install)")
         let app = XCUIApplication()
-        app.launchArguments = ["-inMemoryStore", "-skipOnboarding", "-seedSampleData", "-mockHealth", "full"]
+        app.launchArguments = mode == "empty"
+            ? ["-inMemoryStore", "-skipOnboarding", "-mockHealth", "empty"]
+            : ["-inMemoryStore", "-skipOnboarding", "-seedSampleData", "-mockHealth", "full"]
         app.launch()
         func capture(_ name: String) {
             sleep(1)
@@ -18,9 +21,11 @@ final class ScreenshotTour: XCTestCase {
             add(shot)
         }
         capture("Today")
-        for tile in ["Sleep", "Meals", "Protein", "Gym", "Supplements"] {
-            app.staticTexts[tile].firstMatch.tap()
-            capture("Today-\(tile)")
+        for name in ["Sleep", "Meals", "Protein", "Gym", "Supplements"] {
+            let tile = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", name)).firstMatch
+            guard tile.exists else { continue }
+            tile.tap()
+            capture("Today-\(name)")
             app.navigationBars.buttons.firstMatch.tap()
         }
         app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Yesterday'")).firstMatch.tap()
