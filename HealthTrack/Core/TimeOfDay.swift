@@ -63,6 +63,22 @@ extension TimeOfDay: Codable {
     }
 }
 
+/// A calendar day as "yyyy-MM-dd". Logs store this so the day an entry belongs to
+/// never shifts with time zones or DST, and it sorts and compares as plain text.
+enum DayKey {
+    static func of(_ date: Date, calendar: Calendar) -> String {
+        let c = calendar.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
+    /// Start of that day in `calendar`'s time zone.
+    static func date(_ key: String, calendar: Calendar) -> Date? {
+        let p = key.split(separator: "-").compactMap { Int($0) }
+        guard p.count == 3 else { return nil }
+        return calendar.date(from: DateComponents(year: p[0], month: p[1], day: p[2]))
+    }
+}
+
 extension Array where Element == Double {
     var mean: Double? { isEmpty ? nil : reduce(0, +) / Double(count) }
 }

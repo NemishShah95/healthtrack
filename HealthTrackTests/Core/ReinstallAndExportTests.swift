@@ -34,7 +34,7 @@ private func sampleBundle() -> ExportBundle {
     return ExportBundle(
         exportedAt: t, appVersion: "1.0 (1)", goals: Goals(), favoriteFoods: ["oats", "banana"],
         meals: [MealRecord(
-            id: mealID, day: t, timestamp: t, timeZone: "Asia/Kolkata", mealType: .breakfast, customName: nil,
+            id: mealID, day: "2026-10-14", timestamp: t, timeZone: "Asia/Kolkata", mealType: .breakfast, customName: nil,
             notes: "with \"honey\", warm\nsecond line", qualityRating: 4, createdAt: t, updatedAt: t,
             foods: [FoodRecord(id: UUID(), foodName: "oats", grams: 80.5, servingDescription: nil, notes: "", createdAt: t),
                     FoodRecord(id: UUID(), foodName: "banana, ripe", grams: nil, servingDescription: "1 medium", notes: "", createdAt: t)])],
@@ -47,11 +47,11 @@ private func sampleBundle() -> ExportBundle {
             active: true, notes: "", createdAt: t, updatedAt: t,
             schedules: [ScheduleRecord(id: UUID(), daysOfWeek: [2, 4, 6], preferredTime: .morning, reminderEnabled: true,
                                        reminderTime: .init(8, 15), startDate: t, endDate: nil)])],
-        supplementLogs: [SupplementLogRecord(id: UUID(), supplementID: supplementID, scheduledDate: t, scheduledTime: .init(8, 15),
+        supplementLogs: [SupplementLogRecord(id: UUID(), supplementID: supplementID, scheduleID: nil, scheduledDay: "2026-10-14", scheduledTime: .init(8, 15),
                                              status: .taken, takenAt: t, createdAt: t),
-                         SupplementLogRecord(id: UUID(), supplementID: supplementID, scheduledDate: t + 86400, scheduledTime: nil,
+                         SupplementLogRecord(id: UUID(), supplementID: supplementID, scheduleID: UUID(), scheduledDay: "2026-10-15", scheduledTime: nil,
                                              status: .missed, takenAt: nil, createdAt: t)],
-        checkIns: [CheckInRecord(id: UUID(), day: t, energy: 4, mood: nil, stress: 2, notes: "ok", createdAt: t)])
+        checkIns: [CheckInRecord(id: UUID(), day: "2026-10-14", energy: 4, mood: nil, stress: 2, notes: "ok", createdAt: t)])
 }
 
 @Test func jsonExportRoundTrips() throws {

@@ -40,7 +40,8 @@ struct ExportBundle: Codable, Equatable, Sendable {
 
 struct MealRecord: Codable, Equatable, Sendable {
     var id: UUID
-    var day: Date
+    /// "yyyy-MM-dd"
+    var day: String
     var timestamp: Date
     /// Time zone the meal was logged in, so window checks don't shift after travel.
     var timeZone: String
@@ -101,7 +102,9 @@ struct ScheduleRecord: Codable, Equatable, Sendable {
 struct SupplementLogRecord: Codable, Equatable, Sendable {
     var id: UUID
     var supplementID: UUID
-    var scheduledDate: Date
+    var scheduleID: UUID?
+    /// "yyyy-MM-dd"
+    var scheduledDay: String
     var scheduledTime: TimeOfDay?
     var status: SupplementStatus
     var takenAt: Date?
@@ -110,7 +113,8 @@ struct SupplementLogRecord: Codable, Equatable, Sendable {
 
 struct CheckInRecord: Codable, Equatable, Sendable {
     var id: UUID
-    var day: Date
+    /// "yyyy-MM-dd"
+    var day: String
     var energy: Int?
     var mood: Int?
     var stress: Int?
@@ -129,7 +133,7 @@ enum CSVExport {
         return [
             ("meals.csv", table(
                 ["id", "day", "timestamp", "time_zone", "meal_type", "custom_name", "quality_rating", "food_count", "notes"],
-                b.meals.map { [$0.id.uuidString, day($0.day), t($0.timestamp), $0.timeZone, $0.mealType.rawValue,
+                b.meals.map { [$0.id.uuidString, $0.day, t($0.timestamp), $0.timeZone, $0.mealType.rawValue,
                                s($0.customName), s($0.qualityRating), String($0.foods.count), $0.notes] })),
             ("food_entries.csv", table(
                 ["id", "meal_id", "food_name", "grams", "serving", "notes", "created_at"],
@@ -151,11 +155,11 @@ enum CSVExport {
                      day($0.startDate), $0.endDate.map(day) ?? ""]
                 } })),
             ("supplement_logs.csv", table(
-                ["id", "supplement_id", "scheduled_date", "status", "taken_at"],
-                b.supplementLogs.map { [$0.id.uuidString, $0.supplementID.uuidString, day($0.scheduledDate), $0.status.rawValue, t($0.takenAt)] })),
+                ["id", "supplement_id", "schedule_id", "scheduled_day", "status", "taken_at"],
+                b.supplementLogs.map { [$0.id.uuidString, $0.supplementID.uuidString, s($0.scheduleID?.uuidString), $0.scheduledDay, $0.status.rawValue, t($0.takenAt)] })),
             ("check_ins.csv", table(
                 ["id", "day", "energy", "mood", "stress", "notes"],
-                b.checkIns.map { [$0.id.uuidString, day($0.day), s($0.energy), s($0.mood), s($0.stress), $0.notes] })),
+                b.checkIns.map { [$0.id.uuidString, $0.day, s($0.energy), s($0.mood), s($0.stress), $0.notes] })),
         ]
     }
 

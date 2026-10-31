@@ -41,6 +41,9 @@ enum MealTiming: String, Codable, Sendable {
 struct ParsedFood: Codable, Equatable, Sendable {
     var name: String
     var grams: Double?
+
+    /// "oats 80 g". The inverse of `MealRoutine.parseFoods`, so saved meals can be stored as plain text.
+    var line: String { grams.map { "\(name) \(String(format: "%g", $0)) g" } ?? name }
 }
 
 enum MealRoutine {
