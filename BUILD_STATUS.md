@@ -1,16 +1,25 @@
 # Build Status
 
-_Last updated: 2026-10-31_
+_Last updated: 2026-11-01_
 
 ## Current Milestone
-M17, Transfer package: complete. Next: M18, install on the product owner's iPhone 16 Pro.
+M18, Personal installation: **complete.** Installed on the product owner's iPhone 16 Pro on 2026-11-01 (from the work Mac, with their personal Apple Account).
+Next: M19, real data validation against Apple Health.
+
+## On the iPhone
+| Item | Value |
+| --- | --- |
+| Device | iPhone 16 Pro |
+| Signing | Free Personal Team; HealthKit entitlement granted |
+| Signing expires | **2026-11-07 20:01 UTC** (8 Nov ~01:30 IST). Refresh on or before 7 Nov |
+| Database | `SchemaV1` is **frozen**: `schemaV1IsFrozen` fails on any in-place change |
 
 ## Build
 iOS app (`xcodebuild`, iOS 27.2 simulator SDK): PASS, 0 warnings
 Logic + database (`swift test`): PASS
 
 ## Tests
-`swift test`: 66 passed, 0 failed (core logic, SwiftData, mock HealthKit, day records, export files, gym/protein)
+`swift test`: 67 passed, 0 failed (core logic, SwiftData, mock HealthKit, day records, export files, gym/protein)
 Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2): 72 passed, 0 failed, 1 skipped (66 unit + 6 UI incl. accessibility audit; the screenshot tour runs on request)
 
 ## Simulator QA
@@ -73,7 +82,7 @@ Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2):
 - [x] Added: gym journal (sessions, focus, exercises, repeat last, history, body-part focus chart) and protein tracking
 - [x] M16 Full QA (simulator)
 - [x] M17 Transfer package: fresh clone from GitHub passes `swift test` and builds for simulator and device; no machine-specific paths
-- [ ] M18 Personal Mac installation (product owner)
+- [x] M18 Installed on iPhone 16 Pro (2026-11-01)
 - [ ] M19 Real data validation
 
 ## Known Issues
@@ -81,5 +90,7 @@ Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2):
 - Simulator tests run with `-parallel-testing-enabled NO`; parallel device clones failed once with low disk space.
 
 ## Next Action
-M18: install on the iPhone 16 Pro. The product owner wants to try from this work Mac first (their call regarding company device policy).
-Use the same Apple Account here and on the personal Mac. **From the first install, `SchemaV1` is frozen.**
+M19: compare HealthTrack with the Apple Health app (sleep, deep, REM, HRV, resting HR, steps, latest workout) once a night of real data has synced.
+Refresh before 2026-11-07 from any Mac signed in with the **same** Apple Account. Don't delete the app.
+
+Notes from the install: the work Mac's login keychain was reset during setup (the old file is kept as `login_renamed_1.keychain-db`); the first development certificate was revoked and a new one created.
