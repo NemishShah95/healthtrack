@@ -28,19 +28,25 @@ Deviations from the spec's suggested tree:
 
 Minimal by design: summary first, details one tap away, logging never more than one tap.
 
-- **Today**: the date strip shows today and the previous 5 days (swipe or tap) so forgotten entries can be back-filled. Below it are the consistency ring and six tiles (Sleep, Water, Meals, Supplements, Steps, Check-in). Each tile shows one value and at most one quick action (+250, + Dinner, All ✓). Tapping anywhere else opens that day's full page.
+- **Today**: the date strip shows today and the previous 5 days (swipe or tap) so forgotten entries can be back-filled. Below it are the consistency ring and tiles for Sleep, Water, Meals, Protein, Gym, Supplements, Steps and Check-in. Each tile shows one value and at most one quick action (+250, + Dinner, All ✓). Tapping anywhere else opens that day's full page.
 - **Trends**: one row per metric (summary + sparkline), grouped Sleep / Recovery / Activity / Habits. Tap a row for the full chart.
 - **Weekly**: ring, best habit, what to watch, four key numbers. "Full breakdown" holds every number. The current week counts finished days only.
 - **Settings**: goals, supplements, reminders, Apple Health status, Data & Backup, App Installation, Privacy.
 
 Deviation from the spec: there is no **Log** tab (product owner's decision, 2026-10-31). Logging lives on the Today tiles and their pages.
 
+## Gym journal and protein
+
+- **Gym session**: body-part focus (chips), exercises typed one per line, plus notes. `GymLog.parse` reads `Bench press 3x10 60 kg`, `Pull-ups 3 sets 12 reps`, `Treadmill 20 min 3 km`, `Run 5k`. Pounds and miles are converted to kg and km. Volume = sets × reps × kg.
+- **Counting workouts**: per day, workouts = **max**(watch workouts, journaled sessions). A gym visit that the watch also recorded counts once; a session only in the journal still counts. This feeds the Exercise score, Weekly and Trends.
+- **Protein**: a daily gram counter with quick-add buttons and a user-set target. It's tracked in Today, Trends and Weekly but **not** part of the consistency score; the spec's weights are unchanged.
+
 ## Source of truth
 
 | Data | Owner | Notes |
 | --- | --- | --- |
 | Sleep, heart rate, resting HR, HRV, steps, workouts, active energy, distance, exercise time, weight, SpO₂ | **Apple Health (HealthKit)** | Read-only, queried on demand, never copied into SwiftData |
-| Meals, food entries, saved meals, favourites, water, supplements, schedules, supplement logs, check-ins, goals, settings, reinstall metadata, export metadata | **SwiftData** (on device) | Included in JSON backups |
+| Meals, food entries, saved meals, favourites, water, protein, gym sessions and exercises, supplements, schedules, supplement logs, check-ins, goals, settings, reinstall metadata, export metadata | **SwiftData** (on device) | Included in JSON backups |
 
 ## Sleep methodology (`Core/SleepAggregator.swift`)
 

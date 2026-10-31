@@ -183,38 +183,72 @@ extension Binding where Value == TimeOfDay {
 
 // MARK: - Logging controls (work for any day)
 
-/// +250 / +500 / +750 / custom for `day`. One tap logs; an accidental double-tap is ignored.
-struct WaterButtons: View {
-    @Environment(\.modelContext) private var context
-    let day: Date
+/// One-tap amounts plus a custom entry. An accidental double-tap is ignored by the log action.
+struct QuickAddButtons: View {
+    let amounts: [Int]
+    let unit: String
+    /// Spoken unit, e.g. "millilitres".
+    let noun: String
+    let tint: Color
+    let range: ClosedRange<Int>
+    var asksForLabel = false
+    let log: (Int, String) -> Bool
+
     @State private var showingCustom = false
-    @State private var customML = ""
+    @State private var customAmount = ""
+    @State private var customLabel = ""
     @State private var tapCount = 0
 
     var body: some View {
         HStack(spacing: 8) {
-            ForEach(Hydration.quickAddML, id: \.self) { ml in
-                Button("+\(ml)") { log(ml) }
-                    .accessibilityLabel("Add \(ml) millilitres")
+            ForEach(amounts, id: \.self) { n in
+                Button(unit == "ml" ? "+\(n)" : "+\(n) \(unit)") { fire(n, "") }
+                    .accessibilityLabel("Add \(n) \(noun)")
             }
             Button("Custom", systemImage: "plus") { showingCustom = true }
                 .labelStyle(.iconOnly)
                 .accessibilityLabel("Add a custom amount")
         }
         .buttonStyle(.bordered)
-        .tint(.blue)
+        .tint(tint)
         .sensoryFeedback(.increase, trigger: tapCount)
-        .alert("Add water", isPresented: $showingCustom) {
-            TextField("Millilitres", text: $customML).keyboardType(.numberPad)
-            Button("Add") { if let ml = Int(customML) { log(ml) }; customML = "" }
-            Button("Cancel", role: .cancel) { customML = "" }
+        .alert("Add amount", isPresented: $showingCustom) {
+            TextField(unit == "ml" ? "Millilitres" : "Grams", text: $customAmount).keyboardType(.numberPad)
+            if asksForLabel { TextField("Source (optional)", text: $customLabel) }
+            Button("Add") { if let n = Int(customAmount) { fire(n, customLabel) }; customAmount = ""; customLabel = "" }
+            Button("Cancel", role: .cancel) { customAmount = ""; customLabel = "" }
         } message: {
-            Text("Between 1 and 5000 ml.")
+            Text("Between \(range.lowerBound) and \(range.upperBound) \(unit).")
         }
     }
 
-    private func log(_ ml: Int) {
-        if context.logWater(ml, at: Calendar.current.timestamp(on: day)) != nil { tapCount += 1 }
+    private func fire(_ n: Int, _ label: String) {
+        if log(n, label) { tapCount += 1 }
+    }
+}
+
+/// +250 / +500 / +750 / custom, logged onto `day`.
+struct WaterButtons: View {
+    @Environment(\.modelContext) private var context
+    let day: Date
+
+    var body: some View {
+        QuickAddButtons(amounts: Hydration.quickAddML, unit: "ml", noun: "millilitres", tint: .blue, range: Hydration.validRangeML) { ml, _ in
+            context.logWater(ml, at: Calendar.current.timestamp(on: day)) != nil
+        }
+    }
+}
+
+/// +10 / +20 / +30 g / custom (with an optional source), logged onto `day`.
+struct ProteinButtons: View {
+    @Environment(\.modelContext) private var context
+    let day: Date
+
+    var body: some View {
+        QuickAddButtons(amounts: Protein.quickAddGrams, unit: "g", noun: "grams of protein", tint: .pink,
+                        range: Protein.validRangeGrams, asksForLabel: true) { g, label in
+            context.logProtein(g, label: label, at: Calendar.current.timestamp(on: day)) != nil
+        }
     }
 }
 

@@ -43,6 +43,22 @@ final class LaunchTests: XCTestCase {
     }
 
     @MainActor
+    func testLogGymSessionAndProteinFromToday() {
+        let app = launch(["-mockHealth", "empty"])
+        app.buttons["Add 20 grams of protein"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["20 / 100 g"].waitForExistence(timeout: 5))
+
+        app.buttons["Log a gym session"].firstMatch.tap()
+        app.buttons["Legs"].firstMatch.tap()
+        let exercises = app.textViews.firstMatch.exists ? app.textViews.firstMatch : app.textFields["Bench press 3x10 60 kg"].firstMatch
+        exercises.tap()
+        exercises.typeText("Squat 5x5 100 kg")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(app.staticTexts["Legs"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["1 exercise"].exists)
+    }
+
+    @MainActor
     func testSwipeBackThroughTheLastFiveDays() {
         let app = launch(["-mockHealth", "full", "-seedSampleData"])
         let yesterday = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Yesterday'")).firstMatch

@@ -51,7 +51,12 @@ private func sampleBundle() -> ExportBundle {
                                              status: .taken, takenAt: t, createdAt: t),
                          SupplementLogRecord(id: UUID(), supplementID: supplementID, scheduleID: UUID(), scheduledDay: "2026-10-15", scheduledTime: nil,
                                              status: .missed, takenAt: nil, createdAt: t)],
-        checkIns: [CheckInRecord(id: UUID(), day: "2026-10-14", energy: 4, mood: nil, stress: 2, notes: "ok", createdAt: t)])
+        checkIns: [CheckInRecord(id: UUID(), day: "2026-10-14", energy: 4, mood: nil, stress: 2, notes: "ok", createdAt: t)],
+        gymSessions: [GymSessionRecord(id: UUID(), day: "2026-10-14", timestamp: t, focus: [.chest, .arms], notes: "felt strong",
+                                       createdAt: t, updatedAt: t,
+                                       exercises: [GymExerciseRecord(id: UUID(), exercise: GymLog.parseLine("Bench press 3x10 60 kg")!, createdAt: t),
+                                                   GymExerciseRecord(id: UUID(), exercise: GymLog.parseLine("Treadmill 20 min 3 km")!, createdAt: t)])],
+        protein: [ProteinRecord(id: UUID(), timestamp: t, grams: 30, label: "whey, 1 scoop", createdAt: t)])
 }
 
 @Test func jsonExportRoundTrips() throws {
@@ -85,6 +90,7 @@ private func sampleBundle() -> ExportBundle {
     let expectedRows = [
         "meals.csv": 1, "food_entries.csv": 2, "water.csv": 2, "supplements.csv": 1,
         "supplement_schedules.csv": 1, "supplement_logs.csv": 2, "check_ins.csv": 1,
+        "gym_sessions.csv": 1, "gym_exercises.csv": 2, "protein.csv": 1,
     ]
     #expect(Set(files.keys) == Set(expectedRows.keys))
     for (name, count) in expectedRows {
@@ -122,4 +128,13 @@ private func parseCSV(_ s: String) -> [[String]] {
         i += 1
     }
     return rows
+}
+
+@Test func backupWithoutGymOrProteinStillDecodes() throws {
+    var bundle = sampleBundle()
+    bundle.gymSessions = nil
+    bundle.protein = nil
+    let decoded = try ExportBundle.decode(bundle.jsonData())
+    #expect(decoded.gymSessions == nil && decoded.meals.count == 1)
+    #expect(CSVExport.files(for: decoded).first { $0.name == "protein.csv" }?.contents == "id,timestamp,grams,label\r\n")
 }

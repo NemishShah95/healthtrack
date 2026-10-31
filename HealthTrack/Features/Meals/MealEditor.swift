@@ -150,8 +150,9 @@ struct MealEditor: View {
             }
             meal.notes = notes
             for food in meal.foods { context.delete(food) }
-            for food in foods {
+            for (i, food) in foods.enumerated() {
                 let entry = FoodEntry(name: food.name, grams: food.grams)
+                entry.position = i
                 context.insert(entry)
                 entry.meal = meal
             }

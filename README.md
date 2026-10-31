@@ -7,7 +7,7 @@ A private, single-user iPhone app for daily health and habit tracking. It answer
 3. Are my sleep, recovery, activity and wellbeing trends improving?
 
 Sleep, heart rate, HRV, steps and workouts are read from Apple Health (Amazfit → Zepp → Apple Health → HealthTrack).
-Meals, water, supplements and the daily check-in are logged in the app and stored on the phone with SwiftData.
+Meals, water, protein, supplements, a gym journal (focus areas, sets × reps × weight, cardio) and the daily check-in are logged in the app and stored on the phone with SwiftData.
 Nothing leaves the device: no accounts, no network calls, no analytics, no third-party dependencies.
 
 **Status:** see [BUILD_STATUS.md](BUILD_STATUS.md).

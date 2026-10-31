@@ -25,6 +25,7 @@ struct TrendsView: View {
                 let _ = (meals.count, water.count)
                 let series = TrendSeries.all(days: days, context: context, health: health.snapshot,
                                              goals: settingsRows.first?.goals ?? Goals())
+                let focus = TrendSeries.bodyPartCounts(days: days, context: context)
                 ForEach(MetricSeries.Group.allCases, id: \.self) { group in
                     Section(group.rawValue) {
                         ForEach(series.filter { $0.group == group }) { s in
@@ -35,6 +36,16 @@ struct TrendsView: View {
                                     .navigationBarTitleDisplayMode(.inline)
                             } label: {
                                 TrendRow(series: s)
+                            }
+                        }
+                        if group == .activity {
+                            NavigationLink {
+                                BodyPartFocusView(counts: focus, days: days)
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Body part focus")
+                                    Text(BodyPartFocusView.summary(focus)).font(.caption).foregroundStyle(.secondary)
+                                }
                             }
                         }
                     }
@@ -157,6 +168,13 @@ struct MetricChart: View {
 
 @MainActor
 enum TrendSeries {
+    static func bodyPartCounts(days: Int, context: ModelContext, now: Date = .now, calendar: Calendar = .current) -> [BodyPart: Int] {
+        let today = calendar.startOfDay(for: now)
+        let start = calendar.date(byAdding: .day, value: 1 - days, to: today) ?? today
+        return context.gymSessions(from: DayKey.of(start, calendar: calendar), through: DayKey.of(today, calendar: calendar))
+            .flatMap(\.focus).reduce(into: [:]) { $0[$1, default: 0] += 1 }
+    }
+
     static func all(days: Int, context: ModelContext, health: HealthSnapshot, goals: Goals,
                     now: Date = .now, calendar: Calendar = .current) -> [MetricSeries] {
         let today = calendar.startOfDay(for: now)
@@ -202,12 +220,13 @@ enum TrendSeries {
                                 uniquingKeysWith: { a, _ in a })
         let steps = health.steps.mapValues(Double.init)
 
-        // Workouts per week (week start → count).
+        // Workouts per week (week start → count): watch or journal, never both for one day.
         var weekly: [Date: Double] = [:]
-        for w in health.workouts where w.start >= prevStart {
-            let weekStart = WeeklyReview.week(containing: w.start, calendar: calendar).start
-            weekly[weekStart, default: 0] += 1
+        for r in records where r.workouts > 0 {
+            weekly[WeeklyReview.week(containing: r.day, calendar: calendar).start, default: 0] += Double(r.workouts)
         }
+        let protein = Dictionary(records.compactMap { r in r.protein.map { (DayKey.of(r.day, calendar: calendar), Double($0)) } },
+                                 uniquingKeysWith: +)
         let workoutPoints = weekly.filter { $0.key >= WeeklyReview.week(containing: start, calendar: calendar).start }
             .sorted { $0.key < $1.key }.map { (date: $0.key, value: $0.value) }
         let percent: (Double) -> String = { "\(Int($0.rounded()))%" }
@@ -237,6 +256,8 @@ enum TrendSeries {
                          target: Double(goals.workoutsPerWeek), format: { Format.number($0, digits: 1) }),
             MetricSeries(group: .habits, title: "Water target", unit: "% of target", points: inRange(water), previous: previous(water),
                          target: 100, format: percent),
+            MetricSeries(group: .habits, title: "Protein", unit: "g", points: inRange(protein), previous: previous(protein),
+                         target: Double(goals.proteinTargetGrams), format: { "\(Int($0.rounded())) g" }),
             MetricSeries(group: .habits, title: "Meals on time", unit: "% on time", points: inRange(mealsOnTime), previous: previous(mealsOnTime),
                          target: 100, format: percent),
             MetricSeries(group: .habits, title: "Supplements taken", unit: "% taken", points: inRange(supplements), previous: previous(supplements),

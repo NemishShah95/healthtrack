@@ -10,7 +10,8 @@ enum SchemaV1: VersionedSchema {
     static let versionIdentifier = Schema.Version(1, 0, 0)
     static var models: [any PersistentModel.Type] {
         [Meal.self, FoodEntry.self, SavedMeal.self, WaterEntry.self, Supplement.self,
-         SupplementSchedule.self, SupplementLog.self, DailyCheckIn.self, AppSettings.self]
+         SupplementSchedule.self, SupplementLog.self, DailyCheckIn.self, AppSettings.self,
+         GymSession.self, GymExercise.self, ProteinEntry.self]
     }
 
     @Model final class Meal {
@@ -45,6 +46,8 @@ enum SchemaV1: VersionedSchema {
         var servingDescription: String?
         var notes: String = ""
         var createdAt: Date = Date()
+        /// Order within the meal (timestamps alone can tie after a backup round trip).
+        var position: Int = 0
 
         init(name: String, grams: Double?) {
             foodName = name
@@ -151,6 +154,65 @@ enum SchemaV1: VersionedSchema {
         init(day: String) { self.day = day }
     }
 
+    /// A journaled gym session: what you trained and how.
+    @Model final class GymSession {
+        var id: UUID = UUID()
+        /// "yyyy-MM-dd"
+        var day: String = ""
+        var timestamp: Date = Date()
+        /// `BodyPart` raw values.
+        var focusRaw: [String] = []
+        var notes: String = ""
+        var createdAt: Date = Date()
+        var updatedAt: Date = Date()
+        @Relationship(deleteRule: .cascade, inverse: \GymExercise.session)
+        var exercises: [GymExercise] = []
+
+        init(at timestamp: Date, calendar: Calendar) {
+            self.timestamp = timestamp
+            day = DayKey.of(timestamp, calendar: calendar)
+        }
+    }
+
+    @Model final class GymExercise {
+        var id: UUID = UUID()
+        var session: GymSession?
+        var name: String = ""
+        var sets: Int?
+        var reps: Int?
+        var weightKg: Double?
+        var minutes: Double?
+        var distanceKm: Double?
+        var createdAt: Date = Date()
+        /// Order within the session.
+        var position: Int = 0
+
+        init(_ e: ParsedExercise) {
+            name = e.name
+            sets = e.sets
+            reps = e.reps
+            weightKg = e.weightKg
+            minutes = e.minutes
+            distanceKm = e.distanceKm
+        }
+    }
+
+    @Model final class ProteinEntry {
+        var id: UUID = UUID()
+        var timestamp: Date = Date()
+        var grams: Int = 0
+        /// Optional source, e.g. "whey shake".
+        var label: String = ""
+        var createdAt: Date = Date()
+
+        init(grams: Int, label: String, at timestamp: Date, createdAt: Date) {
+            self.grams = grams
+            self.label = label
+            self.timestamp = timestamp
+            self.createdAt = createdAt
+        }
+    }
+
     /// Single row: goals, preferences and app-installation metadata.
     @Model final class AppSettings {
         /// JSON-encoded `Goals`; decoding fills missing keys with defaults.
@@ -179,6 +241,9 @@ typealias SupplementSchedule = SchemaV1.SupplementSchedule
 typealias SupplementLog = SchemaV1.SupplementLog
 typealias DailyCheckIn = SchemaV1.DailyCheckIn
 typealias AppSettings = SchemaV1.AppSettings
+typealias GymSession = SchemaV1.GymSession
+typealias GymExercise = SchemaV1.GymExercise
+typealias ProteinEntry = SchemaV1.ProteinEntry
 
 enum HealthTrackMigrationPlan: SchemaMigrationPlan {
     static var schemas: [any VersionedSchema.Type] { [SchemaV1.self] }
@@ -193,7 +258,7 @@ extension Meal {
         set { mealTypeRaw = newValue.rawValue }
     }
     var title: String { mealType == .custom ? (customName ?? "Meal") : mealType.rawValue.capitalized }
-    var sortedFoods: [FoodEntry] { foods.sorted { $0.createdAt < $1.createdAt } }
+    var sortedFoods: [FoodEntry] { foods.sorted { ($0.position, $0.createdAt) < ($1.position, $1.createdAt) } }
     /// Local wall-clock time in the zone it was logged in.
     var localTime: TimeOfDay {
         var cal = Calendar.current
@@ -212,6 +277,21 @@ extension SupplementSchedule {
     var reminderTime: TimeOfDay? { reminderMinutes.map { TimeOfDay(0, $0) } }
     func rule(isActive: Bool) -> SupplementRule {
         SupplementRule(weekdays: Set(daysOfWeek), startDate: startDate, endDate: endDate, isActive: isActive)
+    }
+}
+
+extension GymSession {
+    var focus: [BodyPart] {
+        get { focusRaw.compactMap(BodyPart.init(rawValue:)) }
+        set { focusRaw = newValue.map(\.rawValue) }
+    }
+    var sortedExercises: [GymExercise] { exercises.sorted { ($0.position, $0.createdAt) < ($1.position, $1.createdAt) } }
+    var title: String { focus.isEmpty ? "Workout" : focus.map(\.title).joined(separator: " · ") }
+}
+
+extension GymExercise {
+    var parsed: ParsedExercise {
+        ParsedExercise(name: name, sets: sets, reps: reps, weightKg: weightKg, minutes: minutes, distanceKm: distanceKm)
     }
 }
 

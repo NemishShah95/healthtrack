@@ -141,3 +141,17 @@ private let en = Locale(identifier: "en_US")
         #expect(!Insights.bannedPhrases.contains { text.contains($0) }, "\(text)")
     }
 }
+
+@Test func weeklyReviewSummarisesGymAndProtein() {
+    let day = date("2026-10-26")
+    let days = [
+        DayRecord(day: day, facts: DayFacts(), workouts: 1, protein: 120, gymSessions: 1, bodyParts: [.chest, .arms]),
+        DayRecord(day: day, facts: DayFacts(), workouts: 1, protein: 80, gymSessions: 1, bodyParts: [.legs]),
+        DayRecord(day: day, facts: DayFacts(), workouts: 0, protein: nil),
+        DayRecord(day: day, facts: DayFacts(), workouts: 1, protein: 100, gymSessions: 1, bodyParts: [.chest]),
+    ]
+    let r = WeeklyReview(weekStart: day, days: days, previousWeek: [], goals: Goals())   // protein target 100 g
+    #expect(r.averageProtein == 100 && r.proteinDaysLogged == 3 && r.proteinTargetDays == 2)
+    #expect(r.gymSessions == 3 && r.workouts == 3)
+    #expect(r.bodyParts == [.chest: 2, .arms: 1, .legs: 1])
+}

@@ -10,6 +10,8 @@ struct Goals: Codable, Equatable, Sendable {
     var stepTarget = 8000
     var workoutsPerWeek = 4
     var mealWindows = MealWindow.defaults
+    /// A placeholder until you set your own; HealthTrack never recommends an intake.
+    var proteinTargetGrams = 100
 
     func isBedtimeOnTarget(_ t: TimeOfDay) -> Bool { abs(bedtime.signedMinutes(to: t)) <= sleepToleranceMinutes }
     func isWakeOnTarget(_ t: TimeOfDay) -> Bool { abs(wakeTime.signedMinutes(to: t)) <= sleepToleranceMinutes }
@@ -28,6 +30,7 @@ extension Goals {
         stepTarget = try c.decodeIfPresent(Int.self, forKey: .stepTarget) ?? d.stepTarget
         workoutsPerWeek = try c.decodeIfPresent(Int.self, forKey: .workoutsPerWeek) ?? d.workoutsPerWeek
         mealWindows = try c.decodeIfPresent([MealType: MealWindow].self, forKey: .mealWindows) ?? d.mealWindows
+        proteinTargetGrams = try c.decodeIfPresent(Int.self, forKey: .proteinTargetGrams) ?? d.proteinTargetGrams
     }
 }
 

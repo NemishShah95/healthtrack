@@ -79,6 +79,10 @@ private struct WeeklyContent: View {
                             Stat(label: "Workouts", value: "\(r.workouts) / \(r.workoutTarget)")
                             Stat(label: "Water target", value: "\(r.waterTargetDays) / \(r.days) days")
                         }
+                        GridRow {
+                            Stat(label: "Protein", value: r.averageProtein.map { "\(Int($0.rounded())) g avg" } ?? "—")
+                            Stat(label: "Gym sessions", value: "\(r.gymSessions)")
+                        }
                     }
                     .padding(.vertical, 4)
                     NavigationLink("Full breakdown") { WeeklyBreakdown(review: r) }
@@ -111,6 +115,15 @@ private struct WeeklyBreakdown: View {
             Section("Exercise") {
                 LabeledContent("Workouts", value: "\(r.workouts) / \(r.workoutTarget)")
                 LabeledContent("Steps", value: r.averageSteps.map { "\(Int($0).formatted()) avg" } ?? "—")
+            }
+            Section("Gym") {
+                LabeledContent("Sessions journaled", value: "\(r.gymSessions)")
+                LabeledContent("Trained", value: r.bodyParts.isEmpty ? "—"
+                    : BodyPart.allCases.compactMap { p in r.bodyParts[p].map { "\(p.title) \($0)" } }.joined(separator: " · "))
+            }
+            Section("Protein") {
+                LabeledContent("Average", value: r.averageProtein.map { "\(Int($0.rounded())) g" } ?? "—")
+                LabeledContent("Target reached", value: "\(r.proteinTargetDays) / \(r.proteinDaysLogged) logged days")
             }
             Section("Water") {
                 LabeledContent("Target achieved", value: "\(r.waterTargetDays) / \(r.days)")

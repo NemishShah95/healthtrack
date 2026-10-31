@@ -9,7 +9,7 @@ HealthTrack only **reads** these. They stay in Apple Health no matter what happe
 
 ## 2. What lives in HealthTrack (SwiftData, on the iPhone)
 
-Meals and food entries, saved meals and favourite foods, water logs, supplements, supplement schedules and logs, daily check-ins, your goals and settings, and the app-refresh dates.
+Meals and food entries, saved meals and favourite foods, water logs, protein entries, gym sessions and exercises, supplements, supplement schedules and logs, daily check-ins, your goals and settings, and the app-refresh dates.
 These exist nowhere else unless you export a backup.
 
 ## 3. What happens during a normal refresh from Xcode

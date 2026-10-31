@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Logic, database, mock Health | `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test` | Xcode installed (no simulator) |
 | App unit + persistence tests | `xcodebuild test -scheme HealthTrack -destination 'platform=iOS Simulator,name=iPhone 17'` | Xcode + iOS Simulator |
-| UI tests | same, `HealthTrackUITests` target: every tab empty and with 90 days of data, one-tap water, swipe back through 5 days | Xcode + iOS Simulator |
+| UI tests | same, `HealthTrackUITests` target (add `-parallel-testing-enabled NO` if clones fail): every tab empty and with 90 days of data, one-tap water, protein + gym logging from Today, swipe back through 5 days | Xcode + iOS Simulator |
 
 All tests use Swift Testing. Core tests pin the calendar to Europe/London (which has DST) or another named zone, so results don't depend on the machine.
 
@@ -30,6 +30,12 @@ All tests use Swift Testing. Core tests pin the calendar to Europe/London (which
 | Weekly aggregation, week boundaries, partial data | ✅ | `ScoreAndReviewTests` |
 | Trend comparison | ✅ | `ScoreAndReviewTests` |
 | Insight sample thresholds, no causal language | ✅ | `ScoreAndReviewTests` |
+| Exercise line parsing (sets×reps, kg/lb, min, km/mi/k), round trip, volume | ✅ | `GymTests` |
+| Gym sessions: log, edit, repeat, suggestions, cascade delete | ✅ | `GymAndProteinTests` |
+| Protein: range and double-tap guard | ✅ | `GymAndProteinTests` |
+| Workouts counted once when watch + journal overlap | ✅ | `GymAndProteinTests` |
+| Weekly gym/protein summary | ✅ | `ScoreAndReviewTests` |
+| Backups without gym/protein (older format) still decode | ✅ | `ReinstallAndExportTests` |
 | Reinstall reminder dates and warning states | ✅ | `ReinstallAndExportTests` |
 | Export serialisation (JSON round trip, CSV parses) | ✅ | `ReinstallAndExportTests` |
 | Old settings/backups decode (missing keys) | ✅ | `ReinstallAndExportTests` |

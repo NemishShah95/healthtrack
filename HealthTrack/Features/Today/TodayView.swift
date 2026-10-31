@@ -52,6 +52,7 @@ struct TodayView: View {
 /// Detail pages reachable from the tiles.
 enum DayRoute: Hashable {
     case consistency(Date), sleep(Date), meals(Date), water(Date), supplements(Date), activity(Date), checkIn(Date)
+    case protein(Date), gym(Date)
 
     @MainActor @ViewBuilder
     var destination: some View {
@@ -63,6 +64,8 @@ enum DayRoute: Hashable {
         case .supplements(let day): SupplementsDetail(day: day)
         case .activity(let day): ActivityDetail(day: day)
         case .checkIn(let day): CheckInDetail(day: day)
+        case .protein(let day): ProteinDetail(day: day)
+        case .gym(let day): GymDetail(day: day)
         }
     }
 }
@@ -110,7 +113,10 @@ private struct DayDashboard: View {
     @Query private var checkIns: [DailyCheckIn]
     @Query private var settingsRows: [AppSettings]
     @Query private var supplements: [Supplement]
+    @Query private var protein: [ProteinEntry]
+    @Query private var gym: [GymSession]
     @State private var editing: MealEditor.Target?
+    @State private var editingGym: GymEditor.Target?
     let day: Date
     let key: String
     let isToday: Bool
@@ -127,6 +133,8 @@ private struct DayDashboard: View {
         _water = Query(filter: #Predicate<WaterEntry> { $0.timestamp >= day && $0.timestamp < end })
         _doses = Query(filter: #Predicate<SupplementLog> { $0.day == key })
         _checkIns = Query(filter: #Predicate<DailyCheckIn> { $0.day == key })
+        _protein = Query(filter: #Predicate<ProteinEntry> { $0.timestamp >= day && $0.timestamp < end })
+        _gym = Query(filter: #Predicate<GymSession> { $0.day == key }, sort: \.timestamp)
     }
 
     var body: some View {
@@ -147,6 +155,8 @@ private struct DayDashboard: View {
                     sleepTile(goals: goals)
                     waterTile(goals: goals)
                     mealsTile(timings: record?.facts.mealTimings ?? [:], goals: goals)
+                    proteinTile(goals: goals)
+                    gymTile()
                     if !supplements.isEmpty { supplementsTile(statuses) }
                     activityTile(goals: goals)
                     checkInTile(checkIn)
@@ -156,6 +166,34 @@ private struct DayDashboard: View {
         }
         .refreshable { await health.refresh() }
         .sheet(item: $editing) { MealEditor(target: $0) }
+        .sheet(item: $editingGym) { GymEditor(target: $0) }
+    }
+
+    private func proteinTile(goals: Goals) -> some View {
+        let total = protein.reduce(0) { $0 + $1.grams }
+        return Tile(title: "Protein", systemImage: "p.circle.fill", tint: .pink, open: { open(.protein(day)) }) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("\(total) / \(goals.proteinTargetGrams) g").contentTransition(.numericText())
+                ProgressView(value: min(1, Double(total) / Double(max(goals.proteinTargetGrams, 1)))).tint(.pink)
+            }
+        } accessory: {
+            PillButton(title: "+20 g", tint: .pink, accessibilityLabel: "Add 20 grams of protein") {
+                context.logProtein(20, at: Calendar.current.timestamp(on: day))
+            }
+        }
+    }
+
+    private func gymTile() -> some View {
+        let exercises = gym.reduce(0) { $0 + $1.exercises.count }
+        return Tile(title: "Gym", systemImage: "dumbbell.fill", tint: .red,
+                    detail: gym.isEmpty ? "Not logged" : (gym.count > 1 ? "\(gym.count) sessions" : "\(exercises) exercise\(exercises == 1 ? "" : "s")"),
+                    open: { open(.gym(day)) }) {
+            Text(gym.last.map { $0.focus.isEmpty ? "Workout" : $0.focus.map(\.title).joined(separator: ", ") } ?? "—")
+        } accessory: {
+            if gym.isEmpty {
+                PillButton(title: "+ Log", tint: .red, accessibilityLabel: "Log a gym session") { editingGym = .new(day: day) }
+            }
+        }
     }
 
     private func consistency(_ components: [ScoreComponent: Double]) -> some View {
@@ -259,8 +297,7 @@ private struct DayDashboard: View {
 
     private func activityTile(goals: Goals) -> some View {
         let s = health.snapshot
-        let week = WeeklyReview.week(containing: day, calendar: .current)
-        let workouts = s.workouts.filter { week.contains($0.start) }.count
+        let workouts = context.workoutsThisWeek(containing: day, health: s, goals: goals)
         return Tile(title: "Steps", systemImage: "figure.walk", tint: .green,
                     detail: "\(workouts)/\(goals.workoutsPerWeek) workouts this week", open: { open(.activity(day)) }) {
             Text(s.steps[key].map { $0.formatted() } ?? "—")

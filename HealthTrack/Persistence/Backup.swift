@@ -48,6 +48,14 @@ extension ModelContext {
                 CheckInRecord(id: $0.id, day: $0.day, energy: $0.energy, mood: $0.mood, stress: $0.stress,
                               notes: $0.notes, createdAt: $0.createdAt)
             })
+        bundle.gymSessions = all(GymSession.self).map { g in
+            GymSessionRecord(id: g.id, day: g.day, timestamp: g.timestamp, focus: g.focus, notes: g.notes,
+                             createdAt: g.createdAt, updatedAt: g.updatedAt,
+                             exercises: g.sortedExercises.map { GymExerciseRecord(id: $0.id, exercise: $0.parsed, createdAt: $0.createdAt) })
+        }.sorted { ($0.timestamp, $0.id.uuidString) < ($1.timestamp, $1.id.uuidString) }
+        bundle.protein = all(ProteinEntry.self).map {
+            ProteinRecord(id: $0.id, timestamp: $0.timestamp, grams: $0.grams, label: $0.label, createdAt: $0.createdAt)
+        }.sorted { ($0.timestamp, $0.id.uuidString) < ($1.timestamp, $1.id.uuidString) }
         bundle.meals.sort { ($0.timestamp, $0.id.uuidString) < ($1.timestamp, $1.id.uuidString) }
         bundle.savedMeals.sort { ($0.createdAt, $0.id.uuidString) < ($1.createdAt, $1.id.uuidString) }
         bundle.water.sort { ($0.timestamp, $0.id.uuidString) < ($1.timestamp, $1.id.uuidString) }
@@ -77,9 +85,9 @@ extension ModelContext {
             m.id = r.id; m.day = r.day; m.timeZoneID = r.timeZone; m.customName = r.customName; m.notes = r.notes
             m.qualityRating = r.qualityRating; m.createdAt = r.createdAt; m.updatedAt = r.updatedAt
             insert(m)
-            for f in r.foods {
+            for (i, f) in r.foods.enumerated() {
                 let e = FoodEntry(name: f.foodName, grams: f.grams)
-                e.id = f.id; e.servingDescription = f.servingDescription; e.notes = f.notes; e.createdAt = f.createdAt
+                e.id = f.id; e.servingDescription = f.servingDescription; e.notes = f.notes; e.createdAt = f.createdAt; e.position = i
                 insert(e)
                 e.meal = m
             }
@@ -135,6 +143,28 @@ extension ModelContext {
             let c = DailyCheckIn(day: r.day)
             c.id = r.id; c.energy = r.energy; c.mood = r.mood; c.stress = r.stress; c.notes = r.notes; c.createdAt = r.createdAt
             insert(c)
+            added += 1
+        }
+
+        let gymIDs = ids(GymSession.self, \.id)
+        for r in b.gymSessions ?? [] where !gymIDs.contains(r.id) {
+            let g = GymSession(at: r.timestamp, calendar: .current)
+            g.id = r.id; g.day = r.day; g.focus = r.focus; g.notes = r.notes; g.createdAt = r.createdAt; g.updatedAt = r.updatedAt
+            insert(g)
+            for (i, er) in r.exercises.enumerated() {
+                let e = GymExercise(er.exercise)
+                e.id = er.id; e.createdAt = er.createdAt; e.position = i
+                insert(e)
+                e.session = g
+            }
+            added += 1
+        }
+
+        let proteinIDs = ids(ProteinEntry.self, \.id)
+        for r in b.protein ?? [] where !proteinIDs.contains(r.id) {
+            let p = ProteinEntry(grams: r.grams, label: r.label, at: r.timestamp, createdAt: r.createdAt)
+            p.id = r.id
+            insert(p)
             added += 1
         }
 

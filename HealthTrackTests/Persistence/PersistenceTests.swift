@@ -126,7 +126,8 @@ import Testing
 
     @Test func exportImportRoundTripWithoutDuplicates() throws {
         let source = try memoryContext()
-        source.logMeal(.breakfast, foods: [.init(name: "oats", grams: 80)], at: date("2026-10-26 08:00", cal), calendar: cal)
+        source.logMeal(.breakfast, foods: [.init(name: "oats", grams: 80), .init(name: "banana", grams: 120), .init(name: "almonds", grams: nil)],
+                       at: date("2026-10-26 08:00", cal), calendar: cal)
         source.logWater(250, now: date("2026-10-26 09:00", cal))
         let d = Supplement(name: "Vitamin D", dosageText: "1000 IU")
         source.insert(d)
@@ -136,6 +137,8 @@ import Testing
         source.syncSupplementLogs(today: date("2026-10-26 12:00", cal), days: 2, calendar: cal)
         source.checkIn(onDay: "2026-10-26").mood = 5
         source.settings().favoriteFoods = ["oats"]
+        source.logGym(focus: [.legs], exercises: GymLog.parse("Squat 5x5 100 kg\nBike 10 min"), at: date("2026-10-26 18:00", cal), calendar: cal)
+        source.logProtein(30, label: "whey", at: date("2026-10-26 10:00", cal), now: date("2026-10-26 10:00", cal))
         try source.save()
 
         let bundle = try ExportBundle.decode(source.exportBundle(appVersion: "test").jsonData())
@@ -143,7 +146,8 @@ import Testing
         #expect(bundle.supplementLogs.count == 3 && bundle.checkIns.count == 1)
 
         let target = try memoryContext()
-        #expect(try target.importBundle(bundle) == 7)       // 1 meal, 1 water, 1 supplement, 3 logs, 1 check-in
+        #expect(bundle.gymSessions?.first?.exercises.count == 2 && bundle.protein?.count == 1)
+        #expect(try target.importBundle(bundle) == 9)       // + 1 gym session, 1 protein entry
         #expect(try target.importBundle(bundle) == 0)       // second import adds nothing
         #expect(target.exportBundle(appVersion: "test", now: bundle.exportedAt) == bundle)
     }
@@ -181,4 +185,59 @@ import Testing
 @Test func reminderSettingsDecodeWithMissingKeys() throws {
     let r = try JSONDecoder().decode(ReminderSettings.self, from: Data(#"{"water": true}"#.utf8))
     #expect(r.water && !r.meals && r.waterTimes.count == 3)
+}
+
+@MainActor
+@Suite struct GymAndProteinTests {
+    let cal = calendar()
+
+    @Test func gymSessionsLogEditRepeatAndSuggest() throws {
+        let ctx = ModelContext(try Persistence.makeContainer(inMemory: true))
+        let monday = ctx.logGym(focus: [.chest, .arms], exercises: GymLog.parse("Bench press 3x10 60 kg\nCurl 3x12 12 kg"),
+                                at: date("2026-10-26 18:00", cal), calendar: cal)
+        try ctx.save()
+        #expect(monday.day == "2026-10-26" && monday.title == "Chest · Arms")
+        #expect(monday.sortedExercises.map(\.name) == ["Bench press", "Curl"])
+
+        ctx.replaceExercises(of: monday, with: GymLog.parse("Bench press 3x8 65 kg"))
+        try ctx.save()
+        #expect(monday.sortedExercises.map(\.parsed.line) == ["Bench press 3x8 65 kg"])
+        #expect(try ctx.fetchCount(FetchDescriptor<GymExercise>()) == 1)
+
+        let last = try #require(ctx.lastGymSession(before: "2026-10-28"))
+        let thursday = ctx.duplicate(last, at: date("2026-10-29 18:00", cal), calendar: cal)
+        #expect(thursday.day == "2026-10-29" && thursday.focus == [.chest, .arms])
+        #expect(ctx.recentExerciseLines() == ["Bench press 3x8 65 kg"])
+        #expect(ctx.gymSessions(from: "2026-10-26", through: "2026-10-31").count == 2)
+
+        ctx.delete(monday)
+        try ctx.save()
+        #expect(try ctx.fetchCount(FetchDescriptor<GymExercise>()) == 1)   // cascade
+    }
+
+    @Test func proteinLoggingGuardsBadInputAndDoubleTaps() throws {
+        let ctx = ModelContext(try Persistence.makeContainer(inMemory: true))
+        let t = date("2026-10-26 09:00", cal)
+        #expect(ctx.logProtein(20, at: t, now: t) != nil)
+        #expect(ctx.logProtein(20, at: t, now: t + 0.5) == nil)
+        #expect(ctx.logProtein(30, label: " eggs ", at: t, now: t + 0.6)?.label == "eggs")
+        #expect(ctx.logProtein(0, now: t + 9) == nil && ctx.logProtein(500, now: t + 10) == nil)
+        #expect(ctx.protein(from: date("2026-10-26", cal), to: date("2026-10-27", cal)).reduce(0) { $0 + $1.grams } == 50)
+    }
+
+    @Test func journaledGymCountsAsAWorkoutButNeverTwice() throws {
+        let ctx = ModelContext(try Persistence.makeContainer(inMemory: true))
+        let watch = WorkoutSummary(start: date("2026-10-26 18:05", cal), end: date("2026-10-26 19:00", cal), activityName: "Strength Training")
+        let health = HealthSnapshot(steps: ["2026-10-26": 8000], workouts: [watch])
+        ctx.logGym(focus: [.chest], exercises: [], at: date("2026-10-26 18:00", cal), calendar: cal)   // same session as the watch
+        ctx.logGym(focus: [.legs], exercises: [], at: date("2026-10-28 18:00", cal), calendar: cal)    // journal only
+        ctx.logProtein(40, at: date("2026-10-28 09:00", cal), now: date("2026-10-28 09:00", cal))
+        let now = date("2026-10-28 21:00", cal)
+        let records = ctx.dayRecords(from: date("2026-10-26", cal), through: now, health: health, goals: Goals(), now: now, calendar: cal)
+        #expect(records.map(\.workouts) == [1, 0, 1])
+        #expect(records.last?.facts.workoutsInLast7Days == 2)
+        #expect(records.last?.protein == 40 && records[1].protein == nil)
+        #expect(records.last?.bodyParts == [.legs])
+        #expect(ctx.workoutsThisWeek(containing: now, health: health, goals: Goals(), now: now, calendar: cal) == 2)
+    }
 }

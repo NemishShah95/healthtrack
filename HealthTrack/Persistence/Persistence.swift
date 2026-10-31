@@ -57,8 +57,9 @@ extension ModelContext {
         let meal = Meal(type: type, at: timestamp, calendar: calendar)
         meal.notes = notes
         insert(meal)
-        for food in foods {
+        for (i, food) in foods.enumerated() {
             let entry = FoodEntry(name: food.name, grams: food.grams)
+            entry.position = i
             insert(entry)
             entry.meal = meal
         }
@@ -103,6 +104,82 @@ extension ModelContext {
             if names.count == limit { break }
         }
         return names
+    }
+
+    // MARK: Protein
+
+    /// nil when the amount is out of range or it's an accidental double-tap.
+    @discardableResult
+    func logProtein(_ grams: Int, label: String = "", at timestamp: Date = .now, now: Date = .now) -> ProteinEntry? {
+        guard Protein.validRangeGrams.contains(grams) else { return nil }
+        var latest = FetchDescriptor<ProteinEntry>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        latest.fetchLimit = 1
+        let previous = try? fetch(latest).first
+        guard !Hydration.isDuplicateTap(previousML: previous?.grams, previousAt: previous?.createdAt, amountML: grams, at: now) else { return nil }
+        let entry = ProteinEntry(grams: grams, label: label.trimmingCharacters(in: .whitespaces), at: timestamp, createdAt: now)
+        insert(entry)
+        return entry
+    }
+
+    func protein(from start: Date, to end: Date) -> [ProteinEntry] {
+        let d = FetchDescriptor<ProteinEntry>(predicate: #Predicate { $0.timestamp >= start && $0.timestamp < end },
+                                              sortBy: [SortDescriptor(\.timestamp)])
+        return (try? fetch(d)) ?? []
+    }
+
+    // MARK: Gym
+
+    @discardableResult
+    func logGym(focus: [BodyPart], exercises: [ParsedExercise], at timestamp: Date = .now,
+                notes: String = "", calendar: Calendar = .current) -> GymSession {
+        let session = GymSession(at: timestamp, calendar: calendar)
+        session.focus = focus
+        session.notes = notes
+        insert(session)
+        replaceExercises(of: session, with: exercises)
+        return session
+    }
+
+    func replaceExercises(of session: GymSession, with exercises: [ParsedExercise]) {
+        for old in session.exercises { delete(old) }
+        for (i, e) in exercises.enumerated() {
+            let entry = GymExercise(e)
+            entry.position = i
+            insert(entry)
+            entry.session = session
+        }
+        session.updatedAt = .now
+    }
+
+    func gymSessions(from startKey: String, through endKey: String) -> [GymSession] {
+        let d = FetchDescriptor<GymSession>(predicate: #Predicate { $0.day >= startKey && $0.day <= endKey },
+                                            sortBy: [SortDescriptor(\.timestamp)])
+        return (try? fetch(d)) ?? []
+    }
+
+    /// The most recent session before `dayKey`, for "repeat last session".
+    func lastGymSession(before dayKey: String) -> GymSession? {
+        var d = FetchDescriptor<GymSession>(predicate: #Predicate { $0.day < dayKey },
+                                            sortBy: [SortDescriptor(\.timestamp, order: .reverse)])
+        d.fetchLimit = 1
+        return try? fetch(d).first
+    }
+
+    @discardableResult
+    func duplicate(_ session: GymSession, at timestamp: Date = .now, calendar: Calendar = .current) -> GymSession {
+        logGym(focus: session.focus, exercises: session.sortedExercises.map(\.parsed), at: timestamp, calendar: calendar)
+    }
+
+    /// The last line typed for each recently used exercise, newest first — tap to repeat it.
+    func recentExerciseLines(limit: Int = 15) -> [String] {
+        var d = FetchDescriptor<GymExercise>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        d.fetchLimit = 300
+        var seen = Set<String>(), lines: [String] = []
+        for e in (try? fetch(d)) ?? [] where seen.insert(e.name.lowercased()).inserted {
+            lines.append(e.parsed.line)
+            if lines.count == limit { break }
+        }
+        return lines
     }
 
     // MARK: Check-in

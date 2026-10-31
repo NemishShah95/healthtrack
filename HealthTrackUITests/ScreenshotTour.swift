@@ -18,7 +18,7 @@ final class ScreenshotTour: XCTestCase {
             add(shot)
         }
         capture("Today")
-        for tile in ["Sleep", "Meals", "Water", "Supplements"] {
+        for tile in ["Sleep", "Meals", "Protein", "Gym", "Supplements"] {
             app.staticTexts[tile].firstMatch.tap()
             capture("Today-\(tile)")
             app.navigationBars.buttons.firstMatch.tap()

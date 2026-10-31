@@ -16,6 +16,9 @@ struct ExportBundle: Codable, Equatable, Sendable {
     var supplements: [SupplementRecord]
     var supplementLogs: [SupplementLogRecord]
     var checkIns: [CheckInRecord]
+    // Added after the first format: optional, so earlier backups still decode.
+    var gymSessions: [GymSessionRecord]? = nil
+    var protein: [ProteinRecord]? = nil
 
     enum ImportError: Error, Equatable {
         case newerFormat(Int)
@@ -122,6 +125,32 @@ struct CheckInRecord: Codable, Equatable, Sendable {
     var createdAt: Date
 }
 
+struct GymSessionRecord: Codable, Equatable, Sendable {
+    var id: UUID
+    /// "yyyy-MM-dd"
+    var day: String
+    var timestamp: Date
+    var focus: [BodyPart]
+    var notes: String
+    var createdAt: Date
+    var updatedAt: Date
+    var exercises: [GymExerciseRecord]
+}
+
+struct GymExerciseRecord: Codable, Equatable, Sendable {
+    var id: UUID
+    var exercise: ParsedExercise
+    var createdAt: Date
+}
+
+struct ProteinRecord: Codable, Equatable, Sendable {
+    var id: UUID
+    var timestamp: Date
+    var grams: Int
+    var label: String
+    var createdAt: Date
+}
+
 /// CSV is for spreadsheets; JSON is the restorable backup.
 enum CSVExport {
     static func files(for b: ExportBundle, timeZone: TimeZone = .current) -> [(name: String, contents: String)] {
@@ -160,6 +189,19 @@ enum CSVExport {
             ("check_ins.csv", table(
                 ["id", "day", "energy", "mood", "stress", "notes"],
                 b.checkIns.map { [$0.id.uuidString, $0.day, s($0.energy), s($0.mood), s($0.stress), $0.notes] })),
+            ("gym_sessions.csv", table(
+                ["id", "day", "timestamp", "focus", "exercise_count", "notes"],
+                (b.gymSessions ?? []).map { [$0.id.uuidString, $0.day, t($0.timestamp), $0.focus.map(\.rawValue).joined(separator: " "),
+                                             String($0.exercises.count), $0.notes] })),
+            ("gym_exercises.csv", table(
+                ["id", "session_id", "name", "sets", "reps", "weight_kg", "minutes", "distance_km"],
+                (b.gymSessions ?? []).flatMap { g in g.exercises.map {
+                    let e = $0.exercise
+                    return [$0.id.uuidString, g.id.uuidString, e.name, s(e.sets), s(e.reps), s(e.weightKg), s(e.minutes), s(e.distanceKm)]
+                } })),
+            ("protein.csv", table(
+                ["id", "timestamp", "grams", "label"],
+                (b.protein ?? []).map { [$0.id.uuidString, t($0.timestamp), String($0.grams), $0.label] })),
         ]
     }
 

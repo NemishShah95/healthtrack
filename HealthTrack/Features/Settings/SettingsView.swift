@@ -104,6 +104,13 @@ struct GoalsView: View {
                 Stepper("Daily target \(String(format: "%.2g", Double(goals.waterTargetML) / 1000)) L",
                         value: $goals.waterTargetML, in: 500...6000, step: 250)
             }
+            Section {
+                Stepper("Protein \(goals.proteinTargetGrams) g a day", value: $goals.proteinTargetGrams, in: 20...300, step: 5)
+            } header: {
+                Text("Protein")
+            } footer: {
+                Text("Set your own target. HealthTrack doesn't recommend an intake.")
+            }
             Section("Activity") {
                 Stepper("\(goals.stepTarget.formatted()) steps a day", value: $goals.stepTarget, in: 1000...30000, step: 500)
                 Stepper("\(goals.workoutsPerWeek) workouts a week", value: $goals.workoutsPerWeek, in: 0...14)

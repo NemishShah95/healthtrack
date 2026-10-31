@@ -24,6 +24,17 @@ The work Mac can't connect to your iPhone, so the first install and every refres
 
 Follow [Documentation/FREE_PROVISIONING_REFRESH.md](Documentation/FREE_PROVISIONING_REFRESH.md). The app reminds you on its Today screen.
 
+## Which iPhones
+
+Any iPhone running iOS 17 or later, including iPhone 16 Pro, 17 and 17 Pro.
+
+## Installing it for someone else
+
+Each phone keeps its own data, so several people can use HealthTrack, each on their own iPhone. There are two ways to install it for someone else:
+
+1. **Free.** They need a Mac with Xcode and their own Apple Account. They change the bundle identifier **once, before their first install**, to their own (e.g. `com.theirname.healthtrack`), because yours is registered to your Personal Team. Then they follow this guide. They have to refresh every 7 days, just like you.
+2. **Paid.** You join the Apple Developer Program ($99/year) and invite people through TestFlight. Installs then last 90 days per build and need no Mac on their side.
+
 ## Free Personal Team limits
 
 - Apps stop launching about 7 days after the last install from Xcode. Your data is kept; you just need to refresh.

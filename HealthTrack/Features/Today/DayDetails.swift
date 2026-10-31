@@ -168,6 +168,45 @@ struct WaterDetail: View {
     }
 }
 
+struct ProteinDetail: View {
+    @Environment(\.modelContext) private var context
+    @Query private var entries: [ProteinEntry]
+    @Query private var settingsRows: [AppSettings]
+    let day: Date
+
+    init(day: Date) {
+        self.day = day
+        let end = Calendar.current.date(byAdding: .day, value: 1, to: day) ?? day
+        _entries = Query(filter: #Predicate<ProteinEntry> { $0.timestamp >= day && $0.timestamp < end },
+                         sort: \.timestamp, order: .reverse)
+    }
+
+    var body: some View {
+        let target = settingsRows.first?.goals.proteinTargetGrams ?? Goals().proteinTargetGrams
+        let total = entries.reduce(0) { $0 + $1.grams }
+        List {
+            Section {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("\(total) / \(target) g").font(.largeTitle.bold().monospacedDigit()).contentTransition(.numericText())
+                    ProgressView(value: min(1, Double(total) / Double(max(target, 1)))).tint(.pink)
+                }
+                ProteinButtons(day: day)
+            } footer: {
+                Text("Your own target, set in Settings → Goals. HealthTrack doesn't recommend an intake.")
+            }
+            Section("Entries") {
+                if entries.isEmpty { Text("Nothing yet.").foregroundStyle(.secondary) }
+                ForEach(entries) { e in
+                    LabeledContent(e.label.isEmpty ? "\(e.grams) g" : "\(e.grams) g · \(e.label)",
+                                   value: e.timestamp.formatted(date: .omitted, time: .shortened))
+                }
+                .onDelete { for i in $0 { context.delete(entries[i]) } }
+            }
+        }
+        .navigationTitle(title("Protein", day))
+    }
+}
+
 struct SupplementsDetail: View {
     @Environment(\.modelContext) private var context
     @Query private var doses: [SupplementLog]
@@ -204,6 +243,7 @@ struct SupplementsDetail: View {
 }
 
 struct ActivityDetail: View {
+    @Environment(\.modelContext) private var context
     @Environment(HealthStore.self) private var health
     @Query private var settingsRows: [AppSettings]
     let day: Date
@@ -214,7 +254,6 @@ struct ActivityDetail: View {
         let s = health.snapshot
         let end = Calendar.current.date(byAdding: .day, value: 1, to: day) ?? day
         let todays = s.workouts.filter { $0.start >= day && $0.start < end }
-        let week = WeeklyReview.week(containing: day, calendar: .current)
         List {
             Section("Steps") {
                 VStack(alignment: .leading, spacing: 8) {
@@ -230,7 +269,7 @@ struct ActivityDetail: View {
                         Text([Format.duration(w.duration), w.activeEnergyKcal.map { "≈ \(Int($0)) kcal" }].compactMap { $0 }.joined(separator: " · "))
                     }
                 }
-                LabeledContent("This week", value: "\(s.workouts.filter { week.contains($0.start) }.count) / \(goals.workoutsPerWeek)")
+                LabeledContent("This week", value: "\(context.workoutsThisWeek(containing: day, health: s, goals: goals)) / \(goals.workoutsPerWeek)")
             }
             Section {
                 LabeledContent("Active energy", value: s.activeEnergy[key].map { "≈ \(Int($0)) kcal" } ?? "—")

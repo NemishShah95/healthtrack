@@ -7,7 +7,12 @@ struct DayRecord: Sendable {
     var hrv: Double? = nil
     var restingHR: Double? = nil
     var energy: Int? = nil
+    /// Workouts that day: the larger of watch workouts and journaled gym sessions, so one session is never counted twice.
     var workouts = 0
+    /// Grams of protein logged; nil when nothing was logged that day.
+    var protein: Int? = nil
+    var gymSessions = 0
+    var bodyParts: [BodyPart] = []
 }
 
 struct WeeklyReview: Equatable, Sendable {
@@ -32,6 +37,12 @@ struct WeeklyReview: Equatable, Sendable {
     var waterTargetDays: Int
     var supplementAdherence: Double?
     var averageEnergy: Double?
+    var averageProtein: Double?
+    var proteinDaysLogged: Int
+    var proteinTargetDays: Int
+    var gymSessions: Int
+    /// How many sessions trained each body part.
+    var bodyParts: [BodyPart: Int]
     var bestHabit: ScoreComponent?
     var needsAttention: [ScoreComponent]
 
@@ -67,6 +78,12 @@ struct WeeklyReview: Equatable, Sendable {
         waterTargetDays = facts.filter { $0.waterML >= goals.waterTargetML }.count
         supplementAdherence = SupplementAdherence.rate(facts.flatMap(\.supplementStatuses))
         averageEnergy = records.compactMap(\.energy).map(Double.init).mean
+        let protein = records.compactMap(\.protein)
+        averageProtein = protein.map(Double.init).mean
+        proteinDaysLogged = protein.count
+        proteinTargetDays = protein.filter { $0 >= goals.proteinTargetGrams }.count
+        gymSessions = records.reduce(0) { $0 + $1.gymSessions }
+        bodyParts = records.flatMap(\.bodyParts).reduce(into: [:]) { $0[$1, default: 0] += 1 }
 
         // Best first; ties go to the higher-weighted component (allCases order).
         let ranked = ScoreComponent.allCases.enumerated()

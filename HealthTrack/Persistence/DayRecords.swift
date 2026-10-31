@@ -20,6 +20,14 @@ extension ModelContext {
         return firsts.min().map { calendar.startOfDay(for: $0) }
     }
 
+    /// Workouts so far in the calendar week containing `day` (watch or journal, never both for one day).
+    func workoutsThisWeek(containing day: Date, health: HealthSnapshot, goals: Goals,
+                          now: Date = .now, calendar: Calendar = .current) -> Int {
+        let week = WeeklyReview.week(containing: day, calendar: calendar)
+        return dayRecords(from: week.start, through: week.end.addingTimeInterval(-1), health: health, goals: goals,
+                          now: now, calendar: calendar).reduce(0) { $0 + $1.workouts }
+    }
+
     /// Days from `start` through `end` (inclusive, clipped to today), oldest first.
     func dayRecords(from start: Date, through end: Date, health: HealthSnapshot, goals: Goals,
                     now: Date = .now, calendar: Calendar = .current) -> [DayRecord] {
@@ -42,13 +50,21 @@ extension ModelContext {
         let doses = Dictionary(grouping: supplementLogs(from: firstKey, through: lastKey), by: \.day)
         let checkIns = Dictionary(checkIns(from: firstKey, through: lastKey).map { ($0.day, $0) }, uniquingKeysWith: { a, _ in a })
         let nights = health.nights(calendar: calendar)
-        // HealthKit never says whether reading was denied. No steps and no workouts at all means
-        // "no access", so exercise is left out rather than scored as zero.
-        let hasActivityData = !health.steps.isEmpty || !health.workouts.isEmpty
+        let protein = Dictionary(grouping: protein(from: first, to: afterLast)) { DayKey.of($0.timestamp, calendar: calendar) }
+        let weekBefore = calendar.date(byAdding: .day, value: -6, to: first) ?? first
+        let gym = Dictionary(grouping: gymSessions(from: DayKey.of(weekBefore, calendar: calendar), through: lastKey), by: \.day)
+        // HealthKit never says whether reading was denied. No steps, no workouts and no journaled sessions
+        // means "no access", so exercise is left out rather than scored as zero.
+        let hasActivityData = !health.steps.isEmpty || !health.workouts.isEmpty || !gym.isEmpty
+        /// The larger of watch workouts and journaled sessions, so one gym visit never counts twice.
+        func workouts(on day: Date) -> Int {
+            let end = calendar.date(byAdding: .day, value: 1, to: day) ?? day
+            return max(health.workouts.filter { $0.start >= day && $0.start < end }.count,
+                       gym[DayKey.of(day, calendar: calendar)]?.count ?? 0)
+        }
 
         return days.map { day in
             let key = DayKey.of(day, calendar: calendar)
-            let dayEnd = calendar.date(byAdding: .day, value: 1, to: day) ?? day
             var f = DayFacts()
             if let n = nights[key] {
                 f.bedtime = TimeOfDay(of: n.sleepStart, in: calendar)
@@ -69,12 +85,14 @@ extension ModelContext {
                 SupplementAdherence.resolved($0.status, scheduledDay: day, today: now, calendar: calendar)
             }
             f.steps = health.steps[key]
-            if hasActivityData, let weekStart = calendar.date(byAdding: .day, value: -6, to: day) {
-                f.workoutsInLast7Days = health.workouts.filter { $0.start >= weekStart && $0.start < dayEnd }.count
+            if hasActivityData {
+                f.workoutsInLast7Days = (0..<7).compactMap { calendar.date(byAdding: .day, value: -$0, to: day) }.map(workouts).reduce(0, +)
             }
+            let sessions = gym[key] ?? []
             return DayRecord(day: day, facts: f, hrv: health.hrv[key], restingHR: health.restingHR[key],
-                             energy: checkIns[key]?.energy,
-                             workouts: health.workouts.filter { $0.start >= day && $0.start < dayEnd }.count)
+                             energy: checkIns[key]?.energy, workouts: workouts(on: day),
+                             protein: protein[key].map { $0.reduce(0) { $0 + $1.grams } },
+                             gymSessions: sessions.count, bodyParts: sessions.flatMap(\.focus))
         }
     }
 }
