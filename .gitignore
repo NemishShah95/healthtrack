@@ -1,0 +1,17 @@
+# Xcode
+xcuserdata/
+*.xcuserstate
+DerivedData/
+build/
+*.xcresult
+
+# SwiftPM (core logic tests)
+.build/
+.swiftpm/
+
+# macOS
+.DS_Store
+
+# Personal health data must never be committed: exported backups
+HealthTrack-Export-*
+*.healthtrack.json
