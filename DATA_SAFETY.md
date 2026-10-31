@@ -38,6 +38,7 @@ Settings → Data & Backup → **Import JSON backup** (arrives in M15). Import a
 
 - Deleting the HealthTrack app from the iPhone
 - Changing the bundle identifier
+- Installing from Xcode with a **different Apple Account** than last time (it can't update the existing app)
 - Erasing or replacing the iPhone without an iPhone backup or a HealthTrack export
 - A careless database schema change in a future version (see below)
 - Letting the app expire is **not** data loss: it stops launching, but the data stays. Refreshing from Xcode brings it back.

@@ -3,7 +3,7 @@
 _Last updated: 2026-10-31_
 
 ## Current Milestone
-M16, Full QA: complete. M17, Transfer package: in progress.
+M17, Transfer package: complete. Next: M18, install on the product owner's iPhone 16 Pro.
 
 ## Build
 iOS app (`xcodebuild`, iOS 27.2 simulator SDK): PASS, 0 warnings
@@ -32,7 +32,7 @@ Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2):
 | Command Line Tools | 16.4 (Swift 6.1.2) |
 | Git | 2.39.5 |
 | Xcode signing teams | None, and none needed: simulator builds sign locally; signing happens on the personal Mac |
-| Free disk space | ~7.5 GB (99% used). Risky below ~5 GB |
+| Free disk space | ~11 GB (98% used). Risky below ~5 GB |
 
 ## Decisions
 
@@ -72,7 +72,7 @@ Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2):
 - [x] M15 Export (all/JSON/CSV zip, share sheet, last export date) and JSON restore
 - [x] Added: gym journal (sessions, focus, exercises, repeat last, history, body-part focus chart) and protein tracking
 - [x] M16 Full QA (simulator)
-- [ ] M17 Transfer package
+- [x] M17 Transfer package: fresh clone from GitHub passes `swift test` and builds for simulator and device; no machine-specific paths
 - [ ] M18 Personal Mac installation (product owner)
 - [ ] M19 Real data validation
 
@@ -81,4 +81,5 @@ Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2):
 - Simulator tests run with `-parallel-testing-enabled NO`; parallel device clones failed once with low disk space.
 
 ## Next Action
-M17: fresh-clone build check and final docs. Then install on the product owner's iPhone 16 Pro.
+M18: install on the iPhone 16 Pro. The product owner wants to try from this work Mac first (their call regarding company device policy).
+Use the same Apple Account here and on the personal Mac. **From the first install, `SchemaV1` is frozen.**

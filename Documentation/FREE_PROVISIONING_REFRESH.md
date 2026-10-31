@@ -5,7 +5,7 @@ Free Apple signing lasts about 7 days. HealthTrack suggests a refresh on day 6 a
 1. In HealthTrack, export a backup: Settings → Data & Backup → **Export JSON**.
 2. Connect your iPhone to your personal Mac.
 3. Open **HealthTrack.xcodeproj** in Xcode.
-4. Check that the same **Personal Team** is selected (target → Signing & Capabilities).
+4. Check that the same **Personal Team** is selected (target → Signing & Capabilities). It must be the same Apple Account as every previous install.
 5. Confirm the bundle identifier is still **`com.nemishshah.healthtrack`**. It must **not** have changed.
 6. Select your iPhone as the run destination.
 7. Press **Run** (▶).

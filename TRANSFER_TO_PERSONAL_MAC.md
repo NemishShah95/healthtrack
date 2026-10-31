@@ -1,6 +1,6 @@
 # Installing HealthTrack on Your iPhone (Personal Mac)
 
-The work Mac can't connect to your iPhone, so the first install and every refresh happen on your personal Mac, using Apple's free "Personal Team". No paid developer account or TestFlight is needed.
+Installs and refreshes use Apple's free "Personal Team", so no paid developer account or TestFlight is needed. The spec plans this for your personal Mac, but **any Mac works, as long as you sign in to Xcode with the same Apple Account every time.** A different account can't update the installed app; the only way around that is deleting the app, which deletes your data.
 
 ## One-time setup
 
