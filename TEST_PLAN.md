@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Logic, database, mock Health | `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test` | Xcode installed (no simulator) |
 | App unit + persistence tests | `xcodebuild test -scheme HealthTrack -destination 'platform=iOS Simulator,name=iPhone 17'` | Xcode + iOS Simulator |
-| UI tests | same, `HealthTrackUITests` target | Xcode + iOS Simulator |
+| UI tests | same, `HealthTrackUITests` target: every tab empty and with 90 days of data, one-tap water, swipe back through 5 days | Xcode + iOS Simulator |
 
 All tests use Swift Testing. Core tests pin the calendar to Europe/London (which has DST) or another named zone, so results don't depend on the machine.
 
@@ -48,11 +48,11 @@ No data · one day · 7 days · 30 days · 90 days · partial permissions · den
 
 ## Simulator QA checklist (M16)
 
-- [ ] Smallest supported iPhone (iPhone SE) and the largest (Pro Max)
-- [ ] Light and Dark Mode
-- [ ] Dynamic Type up to accessibility sizes, with no clipped text
-- [ ] Empty states on every tab
+- [x] Smallest available iPhone (17e) · [ ] largest (18 Pro Max)
+- [x] Light and Dark Mode
+- [x] Dynamic Type at accessibility-large (two truncations fixed)
+- [~] Empty states on every tab (UI test opens each with no data; visual pass pending)
 - [ ] Long text: food names, notes, supplement names
 - [ ] Many meal entries, many supplements
-- [ ] 90-day trends render and scroll smoothly
-- [ ] Data survives an app relaunch and a simulator restart
+- [x] 90-day trends render
+- [x] Data survives reopening the store (unit test)

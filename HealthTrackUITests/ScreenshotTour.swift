@@ -10,16 +10,30 @@ final class ScreenshotTour: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments = ["-inMemoryStore", "-skipOnboarding", "-seedSampleData", "-mockHealth", "full"]
         app.launch()
-        for tab in ["Today", "Log", "Trends", "Weekly", "Settings"] {
+        func capture(_ name: String) {
+            sleep(1)
+            let shot = XCTAttachment(screenshot: app.screenshot())
+            shot.name = name
+            shot.lifetime = .keepAlways
+            add(shot)
+        }
+        capture("Today")
+        for tile in ["Sleep", "Meals", "Water", "Supplements"] {
+            app.staticTexts[tile].firstMatch.tap()
+            capture("Today-\(tile)")
+            app.navigationBars.buttons.firstMatch.tap()
+        }
+        app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Yesterday'")).firstMatch.tap()
+        capture("Today-yesterday")
+        app.tabBars.buttons["Trends"].tap()
+        app.staticTexts["Sleep duration"].firstMatch.tap()
+        capture("Trends-detail")
+        app.navigationBars.buttons.firstMatch.tap()
+        for tab in ["Trends", "Weekly", "Settings"] {
             app.tabBars.buttons[tab].tap()
-            for page in 1...3 {
-                sleep(1)
-                let shot = XCTAttachment(screenshot: app.screenshot())
-                shot.name = "\(tab)-\(page)"
-                shot.lifetime = .keepAlways
-                add(shot)
-                app.swipeUp()
-            }
+            capture(tab)
+            app.swipeUp()
+            capture("\(tab)-2")
         }
     }
 }

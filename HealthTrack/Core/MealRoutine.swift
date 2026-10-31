@@ -59,6 +59,14 @@ enum MealRoutine {
         return first < window.start ? .early : .late
     }
 
+    /// The meal a one-tap "log" button should mean: the latest window that has started and isn't
+    /// logged yet, otherwise the next one coming up. nil when all three are logged.
+    static func nextMeal(logged: Set<MealType>, windows: [MealType: MealWindow], now: TimeOfDay) -> MealType? {
+        let open = MealType.targeted.filter { !logged.contains($0) }.compactMap { t in windows[t].map { (type: t, window: $0) } }
+        return open.filter { $0.window.start <= now }.max { $0.window.start < $1.window.start }?.type
+            ?? open.min { $0.window.start < $1.window.start }?.type
+    }
+
     /// Mean points over the meals that can be judged; nil when none can be yet.
     static func consistency(_ timings: some Collection<MealTiming>) -> Double? {
         timings.compactMap(\.points).mean

@@ -17,35 +17,105 @@ enum Format {
     }
 }
 
-/// Rounded container used by the Today screen.
-struct Card<Content: View>: View {
-    let title: String
-    let systemImage: String
-    var tint: Color = .accentColor
-    @ViewBuilder var content: Content
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Label(title, systemImage: systemImage)
-                .font(.headline)
-                .foregroundStyle(tint)
-            content
-        }
-        .padding()
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+extension Calendar {
+    /// A timestamp on `day`: now if it's today, otherwise the same clock time on that day.
+    func timestamp(on day: Date, now: Date = .now) -> Date {
+        isDate(day, inSameDayAs: now) ? now : TimeOfDay(of: now, in: self).on(day, in: self)
     }
 }
 
-/// A labelled value, e.g. "Deep  1h 12m".
+// MARK: - Minimal building blocks
+
+/// A summary tile: one label, one value, an optional one-line detail and at most one quick action.
+/// Tapping anywhere else opens the full page.
+struct Tile<Value: View, Accessory: View>: View {
+    let title: String
+    let systemImage: String
+    let tint: Color
+    var detail: String?
+    let open: () -> Void
+    @ViewBuilder var value: Value
+    @ViewBuilder var accessory: Accessory
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Label(title, systemImage: systemImage)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(tint)
+            value
+                .font(.title3.bold())
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+            Spacer(minLength: 0)
+            HStack(alignment: .bottom, spacing: 4) {
+                if let detail {
+                    Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                }
+                Spacer(minLength: 0)
+                accessory
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 20))
+        .contentShape(.rect(cornerRadius: 20))
+        .onTapGesture(perform: open)
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: "Open \(title)", open)
+    }
+}
+
+/// The one quick action a tile may carry.
+struct PillButton: View {
+    let title: String
+    let tint: Color
+    var accessibilityLabel: String?
+    let action: () -> Void
+
+    var body: some View {
+        Button(title, action: action)
+            .font(.caption.weight(.semibold))
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .controlSize(.small)
+            .tint(tint)
+            .accessibilityLabel(accessibilityLabel ?? title)
+    }
+}
+
+struct Ring: View {
+    let value: Double?
+    var size: CGFloat = 64
+    var lineWidth: CGFloat = 8
+
+    var body: some View {
+        ZStack {
+            Circle().stroke(Color(.tertiarySystemFill), lineWidth: lineWidth)
+            Circle()
+                .trim(from: 0, to: value ?? 0)
+                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            Text(Format.percent(value))
+                .font(size > 80 ? .title.bold() : .subheadline.bold())
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.4)
+                .padding(lineWidth)
+        }
+        .frame(width: size, height: size)
+        .animation(.default, value: value)
+    }
+}
+
 struct Stat: View {
     let label: String
     let value: String
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.caption).foregroundStyle(.secondary)
-            Text(value).font(.body.monospacedDigit().weight(.semibold))
+            Text(label).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(value).font(.body.monospacedDigit().weight(.semibold)).fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -66,7 +136,7 @@ extension MealTiming {
     var symbol: String {
         switch self {
         case .onTime: "checkmark.circle.fill"
-        case .early, .late: "clock.badge.exclamationmark"
+        case .early, .late: "clock.fill"
         case .skipped: "xmark.circle"
         case .pending: "circle.dotted"
         }
@@ -111,11 +181,12 @@ extension Binding where Value == TimeOfDay {
     }
 }
 
-// MARK: - Shared logging controls
+// MARK: - Logging controls (work for any day)
 
-/// +250 / +500 / +750 / custom. One tap logs; an accidental double-tap is ignored.
+/// +250 / +500 / +750 / custom for `day`. One tap logs; an accidental double-tap is ignored.
 struct WaterButtons: View {
     @Environment(\.modelContext) private var context
+    let day: Date
     @State private var showingCustom = false
     @State private var customML = ""
     @State private var tapCount = 0
@@ -143,7 +214,7 @@ struct WaterButtons: View {
     }
 
     private func log(_ ml: Int) {
-        if context.logWater(ml) != nil { tapCount += 1 }
+        if context.logWater(ml, at: Calendar.current.timestamp(on: day)) != nil { tapCount += 1 }
     }
 }
 
@@ -160,7 +231,7 @@ struct CheckInControls: View {
 
     var body: some View {
         let checkIn = checkIns.first
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 12) {
             row("Energy", value: checkIn?.energy) { c, v in c.energy = v }
             row("Mood", value: checkIn?.mood) { c, v in c.mood = v }
             row("Stress", value: checkIn?.stress) { c, v in c.stress = v }
@@ -191,22 +262,51 @@ struct CheckInControls: View {
     }
 }
 
-/// One scheduled dose. Tap toggles taken; the menu offers skip.
+struct CheckInNotes: View {
+    @Environment(\.modelContext) private var context
+    @Query private var checkIns: [DailyCheckIn]
+    @State private var text = ""
+    let dayKey: String
+
+    init(dayKey: String) {
+        self.dayKey = dayKey
+        _checkIns = Query(filter: #Predicate<DailyCheckIn> { $0.day == dayKey })
+    }
+
+    var body: some View {
+        TextField("Notes (optional)", text: $text, axis: .vertical)
+            .onAppear { text = checkIns.first?.notes ?? "" }
+            .onSubmit(save)
+            .onDisappear(perform: save)
+    }
+
+    private func save() {
+        guard text != (checkIns.first?.notes ?? "") else { return }
+        let c = context.checkIn(onDay: dayKey)
+        c.notes = text
+        c.updatedAt = .now
+    }
+}
+
+/// One scheduled dose. Tap toggles taken; the menu offers skip. On past days "off" means missed.
 struct DoseRow: View {
     @Environment(\.modelContext) private var context
     let log: SupplementLog
+    var isPast = false
 
     var body: some View {
+        let off: SupplementStatus = isPast ? .missed : .pending
         HStack {
             Button {
-                context.setStatus(log.status == .taken ? .pending : .taken, for: log)
+                context.setStatus(log.status == .taken ? off : .taken, for: log)
             } label: {
                 Image(systemName: log.status.symbol)
                     .font(.title3)
                     .foregroundStyle(log.status.color)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel(log.status == .taken ? "Mark as not taken" : "Mark as taken")
+            .accessibilityLabel(log.status == .taken ? "Mark \(log.supplement?.name ?? "dose") as not taken"
+                                                     : "Mark \(log.supplement?.name ?? "dose") as taken")
 
             VStack(alignment: .leading) {
                 Text(log.supplement?.name ?? "Supplement").lineLimit(2)
@@ -218,7 +318,7 @@ struct DoseRow: View {
             Menu {
                 Button("Taken", systemImage: "checkmark") { context.setStatus(.taken, for: log) }
                 Button("Skipped", systemImage: "forward") { context.setStatus(.skipped, for: log) }
-                Button("Not yet", systemImage: "circle") { context.setStatus(.pending, for: log) }
+                Button(isPast ? "Missed" : "Not yet", systemImage: "circle") { context.setStatus(off, for: log) }
             } label: {
                 Text(log.status.rawValue.capitalized).font(.caption).foregroundStyle(log.status.color)
             }

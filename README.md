@@ -22,7 +22,7 @@ Nothing leaves the device: no accounts, no network calls, no analytics, no third
 │   ├── Core/                  Pure logic: scoring, sleep, meals, supplements, export format
 │   ├── Health/                Apple Health reading, plus a mock for the simulator
 │   ├── Persistence/           SwiftData database, backup/restore, sample data
-│   ├── Features/              Today · Log · Trends · Weekly · Settings screens
+│   ├── Features/              Today (+ detail pages) · Meals · Supplements · Trends · Weekly · Settings
 │   └── Shared/                Reusable views
 ├── HealthTrackTests/          Unit tests (Swift Testing)
 ├── HealthTrackUITests/        Launch/UI tests
@@ -38,13 +38,15 @@ Nothing leaves the device: no accounts, no network calls, no analytics, no third
 
 ```sh
 # Logic, database and mock Health data, in about a second (no simulator):
-DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test
+swift test
 
 # Everything, including UI tests, in the simulator:
 xcodebuild test -project HealthTrack.xcodeproj -scheme HealthTrack -destination 'platform=iOS Simulator,name=iPhone 17'
 ```
 
-If you ran `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`, the `DEVELOPER_DIR=` part isn't needed.
+These need Xcode selected (`sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`), or prefix them with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`.
+
+Screenshots of every screen for visual checks: add `TEST_RUNNER_SCREENSHOTS=1` in front of the `xcodebuild test` command (see `HealthTrackUITests/ScreenshotTour.swift`).
 
 ## Simulator launch arguments
 

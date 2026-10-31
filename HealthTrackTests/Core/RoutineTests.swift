@@ -135,3 +135,13 @@ let breakfast = MealWindow.defaults[.breakfast]!  // 07:30–09:30
     #expect(SupplementAdherence.mostMissed([("Zinc", .missed), ("Iron", .missed)]) == "Iron")
     #expect(SupplementAdherence.mostMissed([("Vitamin D", .taken)]) == nil)
 }
+
+@Test func oneTapMealPicksTheMealYouMostLikelyMean() {
+    let w = MealWindow.defaults
+    #expect(MealRoutine.nextMeal(logged: [], windows: w, now: .init(21, 40)) == .dinner)
+    #expect(MealRoutine.nextMeal(logged: [], windows: w, now: .init(13)) == .lunch)
+    #expect(MealRoutine.nextMeal(logged: [], windows: w, now: .init(6)) == .breakfast)
+    #expect(MealRoutine.nextMeal(logged: [.breakfast, .dinner], windows: w, now: .init(13)) == .lunch)
+    #expect(MealRoutine.nextMeal(logged: [.dinner], windows: w, now: .init(22)) == .lunch)
+    #expect(MealRoutine.nextMeal(logged: [.breakfast, .lunch, .dinner], windows: w, now: .init(13)) == nil)
+}

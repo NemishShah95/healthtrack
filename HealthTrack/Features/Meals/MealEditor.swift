@@ -4,7 +4,8 @@ import SwiftUI
 /// Add or edit a meal. Foods are optional: one per line, grams optional ("oats 80 g").
 struct MealEditor: View {
     enum Target: Identifiable {
-        case new
+        /// New meal; `day` nil = now, `type` nil = guess from the clock.
+        case new(day: Date?, type: MealType?)
         case edit(Meal)
 
         var id: String {
@@ -114,10 +115,17 @@ struct MealEditor: View {
 
     private func load() {
         recent = context.recentFoods()
-        guard case .edit(let meal) = target else {
-            type = Self.guessType(for: TimeOfDay(of: .now, in: .current), windows: context.settings().goals.mealWindows)
+        let windows = context.settings().goals.mealWindows
+        if case .new(let day, let preset) = target {
+            type = preset ?? Self.guessType(for: TimeOfDay(of: .now, in: .current), windows: windows)
+            if let day, !Calendar.current.isDateInToday(day) {
+                // Back-filling a past day: start at the middle of that meal's window.
+                let w = windows[type] ?? MealWindow(start: TimeOfDay(12), end: TimeOfDay(12))
+                time = TimeOfDay(0, (w.start.minutes + w.end.minutes) / 2).on(day, in: .current)
+            }
             return
         }
+        guard case .edit(let meal) = target else { return }
         type = meal.mealType
         customName = meal.customName ?? ""
         time = meal.timestamp

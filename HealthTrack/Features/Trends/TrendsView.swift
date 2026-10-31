@@ -6,36 +6,76 @@ struct TrendsView: View {
     @Environment(\.modelContext) private var context
     @Environment(HealthStore.self) private var health
     @Query private var settingsRows: [AppSettings]
-    @Query private var meals: [Meal]          // observed so charts refresh after logging
+    @Query private var meals: [Meal]          // observed so trends refresh after logging
     @Query private var water: [WaterEntry]
     @State private var days = 30
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    Picker("Period", selection: $days) {
-                        Text("7 days").tag(7)
-                        Text("30 days").tag(30)
-                        Text("90 days").tag(90)
-                    }
-                    .pickerStyle(.segmented)
-                    let _ = (meals.count, water.count)
-                    ForEach(TrendSeries.all(days: days, context: context, health: health.snapshot,
-                                            goals: settingsRows.first?.goals ?? Goals())) { MetricChart(series: $0) }
+            List {
+                Picker("Period", selection: $days) {
+                    Text("7 days").tag(7)
+                    Text("30 days").tag(30)
+                    Text("90 days").tag(90)
                 }
-                .padding()
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+                .listRowInsets(EdgeInsets())
+
+                let _ = (meals.count, water.count)
+                let series = TrendSeries.all(days: days, context: context, health: health.snapshot,
+                                             goals: settingsRows.first?.goals ?? Goals())
+                ForEach(MetricSeries.Group.allCases, id: \.self) { group in
+                    Section(group.rawValue) {
+                        ForEach(series.filter { $0.group == group }) { s in
+                            NavigationLink {
+                                ScrollView { MetricChart(series: s).padding() }
+                                    .background(Color(.systemGroupedBackground))
+                                    .navigationTitle(s.title)
+                                    .navigationBarTitleDisplayMode(.inline)
+                            } label: {
+                                TrendRow(series: s)
+                            }
+                        }
+                    }
+                }
             }
-            .background(Color(.systemGroupedBackground))
             .navigationTitle("Trends")
             .refreshable { await health.refresh() }
         }
     }
 }
 
+/// One line per metric: name, summary and a tiny sparkline. Tap for the full chart.
+struct TrendRow: View {
+    let series: MetricSeries
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(series.title)
+                Text(series.resolvedSummary).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+            }
+            Spacer(minLength: 8)
+            if series.points.count >= 2 {
+                Chart(series.points, id: \.date) { p in
+                    LineMark(x: .value("Day", p.date), y: .value(series.unit, p.value))
+                        .interpolationMethod(.monotone)
+                }
+                .chartXAxis(.hidden)
+                .chartYAxis(.hidden)
+                .frame(width: 72, height: 30)
+                .accessibilityHidden(true)
+            }
+        }
+    }
+}
+
 struct MetricSeries: Identifiable {
     enum Style { case bar, line, point }
+    enum Group: String, CaseIterable { case sleep = "Sleep", recovery = "Recovery", activity = "Activity", habits = "Habits" }
 
+    var group: Group
     var title: String
     var unit: String
     var points: [(date: Date, value: Double)]
@@ -173,35 +213,35 @@ enum TrendSeries {
         let percent: (Double) -> String = { "\(Int($0.rounded()))%" }
 
         return [
-            MetricSeries(title: "Sleep duration", unit: "Hours", points: inRange(asleep), previous: previous(asleep),
+            MetricSeries(group: .sleep, title: "Sleep duration", unit: "Hours", points: inRange(asleep), previous: previous(asleep),
                          target: Double(goals.sleepTargetMinutes) / 60, format: { Format.duration($0 * 3600) }),
-            MetricSeries(title: "Bedtime consistency", unit: "Minutes from target", points: inRange(bedDeviation), style: .point,
+            MetricSeries(group: .sleep, title: "Bedtime consistency", unit: "Minutes from target", points: inRange(bedDeviation), style: .point,
                          target: 0, targetLabel: goals.bedtime.formatted(), band: -tolerance...tolerance,
                          summary: onTarget(bedDeviation), note: "Above the line = later than your target bedtime."),
-            MetricSeries(title: "Wake-time consistency", unit: "Minutes from target", points: inRange(wakeDeviation), style: .point,
+            MetricSeries(group: .sleep, title: "Wake-time consistency", unit: "Minutes from target", points: inRange(wakeDeviation), style: .point,
                          target: 0, targetLabel: goals.wakeTime.formatted(), band: -tolerance...tolerance,
                          summary: onTarget(wakeDeviation)),
-            MetricSeries(title: "HRV", unit: "ms", points: inRange(health.hrv), previous: previous(health.hrv), style: .line,
+            MetricSeries(group: .recovery, title: "HRV", unit: "ms", points: inRange(health.hrv), previous: previous(health.hrv), style: .line,
                          target: inRange(health.hrv).map(\.value).mean, targetLabel: "Your average",
                          format: { "\(Int($0.rounded())) ms" }, note: "Compare with your own baseline, not with other people."),
-            MetricSeries(title: "Resting heart rate", unit: "bpm", points: inRange(health.restingHR), previous: previous(health.restingHR),
+            MetricSeries(group: .recovery, title: "Resting heart rate", unit: "bpm", points: inRange(health.restingHR), previous: previous(health.restingHR),
                          style: .line, target: inRange(health.restingHR).map(\.value).mean, targetLabel: "Your average",
                          format: { "\(Int($0.rounded())) bpm" }),
-            MetricSeries(title: "Deep sleep", unit: "Minutes", points: inRange(deep), previous: previous(deep),
+            MetricSeries(group: .sleep, title: "Deep sleep", unit: "Minutes", points: inRange(deep), previous: previous(deep),
                          format: { Format.duration($0 * 60) }, note: "Stages are estimates from your watch."),
-            MetricSeries(title: "REM sleep", unit: "Minutes", points: inRange(rem), previous: previous(rem),
+            MetricSeries(group: .sleep, title: "REM sleep", unit: "Minutes", points: inRange(rem), previous: previous(rem),
                          format: { Format.duration($0 * 60) }),
-            MetricSeries(title: "Steps", unit: "Steps", points: inRange(steps), previous: previous(steps),
+            MetricSeries(group: .activity, title: "Steps", unit: "Steps", points: inRange(steps), previous: previous(steps),
                          target: Double(goals.stepTarget), format: { Int($0).formatted() }),
-            MetricSeries(title: "Workouts per week", unit: "Workouts", points: workoutPoints,
+            MetricSeries(group: .activity, title: "Workouts per week", unit: "Workouts", points: workoutPoints,
                          target: Double(goals.workoutsPerWeek), format: { Format.number($0, digits: 1) }),
-            MetricSeries(title: "Water target", unit: "% of target", points: inRange(water), previous: previous(water),
+            MetricSeries(group: .habits, title: "Water target", unit: "% of target", points: inRange(water), previous: previous(water),
                          target: 100, format: percent),
-            MetricSeries(title: "Meals on time", unit: "% on time", points: inRange(mealsOnTime), previous: previous(mealsOnTime),
+            MetricSeries(group: .habits, title: "Meals on time", unit: "% on time", points: inRange(mealsOnTime), previous: previous(mealsOnTime),
                          target: 100, format: percent),
-            MetricSeries(title: "Supplements taken", unit: "% taken", points: inRange(supplements), previous: previous(supplements),
+            MetricSeries(group: .habits, title: "Supplements taken", unit: "% taken", points: inRange(supplements), previous: previous(supplements),
                          target: 100, format: percent),
-            MetricSeries(title: "Energy", unit: "1–5", points: inRange(energy), previous: previous(energy), style: .line,
+            MetricSeries(group: .habits, title: "Energy", unit: "1–5", points: inRange(energy), previous: previous(energy), style: .line,
                          format: { Format.number($0, digits: 1) }),
         ]
     }

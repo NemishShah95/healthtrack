@@ -1,282 +1,281 @@
 import SwiftData
 import SwiftUI
 
+/// Today plus the previous five days. Swipe or tap a date to see, fix or back-fill that day.
 struct TodayView: View {
-    @Environment(HealthStore.self) private var health
+    static let daysBack = 5
+
     @Environment(\.scenePhase) private var scenePhase
-    @State private var day = Calendar.current.startOfDay(for: .now)
+    @State private var today = Calendar.current.startOfDay(for: .now)
+    @State private var selection = TodayView.daysBack   // last page = today
+    @State private var path: [DayRoute] = []
+
+    private var days: [Date] {
+        (0...Self.daysBack).reversed().compactMap { Calendar.current.date(byAdding: .day, value: -$0, to: today) }
+    }
 
     var body: some View {
-        NavigationStack {
-            TodayDashboard(day: day)
-                .id(day)
-                .navigationTitle("Today")
-                .refreshable { await health.refresh() }
+        NavigationStack(path: $path) {
+            VStack(spacing: 0) {
+                DayStrip(days: days, selection: $selection)
+                TabView(selection: $selection) {
+                    ForEach(Array(days.enumerated()), id: \.element) { i, day in
+                        DayDashboard(day: day, isToday: i == Self.daysBack) { path.append($0) }
+                            .tag(i)
+                    }
+                }
+                .tabViewStyle(.page(indexDisplayMode: .never))
+            }
+            .background(Color(.systemGroupedBackground))
+            .navigationTitle(Self.title(for: days[min(selection, days.count - 1)]))
+            .navigationDestination(for: DayRoute.self) { $0.destination }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { day = Calendar.current.startOfDay(for: .now) }   // rolls over after midnight
+            guard phase == .active else { return }
+            let now = Calendar.current.startOfDay(for: .now)
+            if now != today {   // rolled past midnight while in the background
+                today = now
+                selection = Self.daysBack
+                path = []
+            }
+        }
+    }
+
+    static func title(for day: Date) -> String {
+        let cal = Calendar.current
+        if cal.isDateInToday(day) { return "Today" }
+        if cal.isDateInYesterday(day) { return "Yesterday" }
+        return day.formatted(.dateTime.weekday(.wide))
+    }
+}
+
+/// Detail pages reachable from the tiles.
+enum DayRoute: Hashable {
+    case consistency(Date), sleep(Date), meals(Date), water(Date), supplements(Date), activity(Date), checkIn(Date)
+
+    @MainActor @ViewBuilder
+    var destination: some View {
+        switch self {
+        case .consistency(let day): ConsistencyDetail(day: day)
+        case .sleep(let day): SleepDetail(day: day)
+        case .meals(let day): MealsDetail(day: day)
+        case .water(let day): WaterDetail(day: day)
+        case .supplements(let day): SupplementsDetail(day: day)
+        case .activity(let day): ActivityDetail(day: day)
+        case .checkIn(let day): CheckInDetail(day: day)
         }
     }
 }
 
-private struct TodayDashboard: View {
+private struct DayStrip: View {
+    let days: [Date]
+    @Binding var selection: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            ForEach(Array(days.enumerated()), id: \.element) { i, day in
+                let selected = i == selection
+                Button {
+                    withAnimation { selection = i }
+                } label: {
+                    VStack(spacing: 2) {
+                        Text(day.formatted(.dateTime.weekday(.abbreviated)))
+                            .font(.caption2)
+                            .foregroundStyle(selected ? Color.white.opacity(0.85) : .secondary)
+                        Text(day.formatted(.dateTime.day()))
+                            .font(.subheadline.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(selected ? Color.white : .primary)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 48)
+                    .background(selected ? Color.accentColor : .clear, in: .rect(cornerRadius: 14))
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(TodayView.title(for: day)), \(day.formatted(date: .complete, time: .omitted))")
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 6)
+    }
+}
+
+private struct DayDashboard: View {
     @Environment(\.modelContext) private var context
     @Environment(HealthStore.self) private var health
+    @Environment(\.dynamicTypeSize) private var typeSize
     @Query private var meals: [Meal]
     @Query private var water: [WaterEntry]
     @Query private var doses: [SupplementLog]
     @Query private var checkIns: [DailyCheckIn]
     @Query private var settingsRows: [AppSettings]
+    @Query private var supplements: [Supplement]
+    @State private var editing: MealEditor.Target?
     let day: Date
     let key: String
+    let isToday: Bool
+    let open: (DayRoute) -> Void
 
-    init(day: Date) {
+    init(day: Date, isToday: Bool, open: @escaping (DayRoute) -> Void) {
         let key = DayKey.of(day, calendar: .current)
         let end = Calendar.current.date(byAdding: .day, value: 1, to: day) ?? day
         self.day = day
         self.key = key
+        self.isToday = isToday
+        self.open = open
         _meals = Query(filter: #Predicate<Meal> { $0.day == key }, sort: \.timestamp)
-        _water = Query(filter: #Predicate<WaterEntry> { $0.timestamp >= day && $0.timestamp < end }, sort: \.timestamp)
+        _water = Query(filter: #Predicate<WaterEntry> { $0.timestamp >= day && $0.timestamp < end })
         _doses = Query(filter: #Predicate<SupplementLog> { $0.day == key })
         _checkIns = Query(filter: #Predicate<DailyCheckIn> { $0.day == key })
     }
 
     var body: some View {
-        let settings = settingsRows.first
-        let goals = settings?.goals ?? Goals()
-        let _ = checkIns.first?.updatedAt   // re-render on check-in changes
+        let goals = settingsRows.first?.goals ?? Goals()
+        let checkIn = checkIns.first
+        let statuses = doses.map(\.status)   // reading these re-renders on every tick
         let record = context.dayRecords(from: day, through: day, health: health.snapshot, goals: goals).first
         let components = record.map { BehaviorScore.components($0.facts, goals: goals) } ?? [:]
-        let snapshot = health.snapshot
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: typeSize.isAccessibilitySize ? 1 : 2)
 
         ScrollView {
-            VStack(spacing: 16) {
-                if let settings { RefreshBanner(status: ReinstallTracker.status(settings)) }
-                ConsistencyCard(components: components)
-                SleepCard(night: snapshot.nights(calendar: .current)[key], hrv: snapshot.hrv[key],
-                          hrvBaseline: baseline(snapshot.hrv), restingHR: snapshot.restingHR[key],
-                          restingBaseline: baseline(snapshot.restingHR), goals: goals, access: health.access)
-                MealsCard(timings: record?.facts.mealTimings ?? [:], windows: goals.mealWindows, meals: meals,
-                          consistency: components[.meals])
-                WaterCard(totalML: water.reduce(0) { $0 + $1.amountML }, targetML: goals.waterTargetML, latest: water.last)
-                SupplementsCard(doses: context.supplementLogs(from: key, through: key), dayKey: key)
-                ActivityCard(day: day, steps: snapshot.steps[key], energy: snapshot.activeEnergy[key],
-                             workouts: snapshot.workouts, goals: goals)
-                Card(title: "Check-in", systemImage: "face.smiling", tint: .teal) {
-                    CheckInControls(dayKey: key)
+            VStack(spacing: 12) {
+                if isToday, let settings = settingsRows.first {
+                    RefreshBanner(status: ReinstallTracker.status(settings))
+                }
+                consistency(components)
+                LazyVGrid(columns: columns, spacing: 12) {
+                    sleepTile(goals: goals)
+                    waterTile(goals: goals)
+                    mealsTile(timings: record?.facts.mealTimings ?? [:], goals: goals)
+                    if !supplements.isEmpty { supplementsTile(statuses) }
+                    activityTile(goals: goals)
+                    checkInTile(checkIn)
                 }
             }
             .padding()
         }
-        .background(Color(.systemGroupedBackground))
-        .overlay(alignment: .top) { if health.isLoading && snapshot.steps.isEmpty { ProgressView().padding() } }
-        .onAppear { _ = doses.count }
+        .refreshable { await health.refresh() }
+        .sheet(item: $editing) { MealEditor(target: $0) }
     }
 
-    /// Mean of the previous 30 days, excluding today.
-    private func baseline(_ values: [String: Double]) -> Double? {
-        guard let start = Calendar.current.date(byAdding: .day, value: -30, to: day) else { return nil }
-        let startKey = DayKey.of(start, calendar: .current)
-        return values.filter { $0.key >= startKey && $0.key < key }.map(\.value).mean
-    }
-}
-
-private struct ConsistencyCard: View {
-    let components: [ScoreComponent: Double]
-
-    var body: some View {
-        Card(title: "Daily consistency", systemImage: "checkmark.seal.fill", tint: .green) {
-            if let score = BehaviorScore.score(components) {
-                Text(Format.percent(score))
-                    .font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
-                    .accessibilityLabel("Daily consistency \(Format.percent(score))")
-                ForEach(ScoreComponent.allCases.filter { components[$0] != nil }, id: \.self) { c in
-                    HStack {
-                        Text(c.title).font(.subheadline)
-                        Spacer()
-                        ProgressView(value: components[c] ?? 0).frame(width: 90).tint(.green)
-                        Text(Format.percent(components[c])).font(.caption.monospacedDigit()).frame(width: 40, alignment: .trailing)
-                    }
-                    .accessibilityElement(children: .combine)
-                }
-            } else {
-                Text("Log something to see how today is going.").foregroundStyle(.secondary)
+    private func consistency(_ components: [ScoreComponent: Double]) -> some View {
+        let score = BehaviorScore.score(components)
+        let onTrack = components.values.filter { $0 >= WeeklyReview.attentionThreshold }.count
+        return HStack(spacing: 16) {
+            Ring(value: score)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Daily consistency").font(.headline)
+                Text(components.isEmpty ? "Log something to get started" : "\(onTrack) of \(components.count) habits on track")
+                    .font(.subheadline).foregroundStyle(.secondary)
             }
-            Text("Did I do what I intended today? This is about habits, not a medical score.")
-                .font(.caption).foregroundStyle(.secondary)
+            Spacer()
+            Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
         }
+        .padding(14)
+        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 20))
+        .contentShape(.rect(cornerRadius: 20))
+        .onTapGesture { open(.consistency(day)) }
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isButton)
     }
-}
 
-private struct SleepCard: View {
-    let night: NightSummary?
-    let hrv: Double?
-    let hrvBaseline: Double?
-    let restingHR: Double?
-    let restingBaseline: Double?
-    let goals: Goals
-    let access: HealthAccess
-
-    var body: some View {
-        Card(title: "Sleep", systemImage: "bed.double.fill", tint: .indigo) {
-            if let n = night {
-                let bed = TimeOfDay(of: n.sleepStart, in: .current)
-                let wake = TimeOfDay(of: n.finalWake, in: .current)
-                HStack(alignment: .firstTextBaseline) {
-                    Text(Format.duration(n.asleep)).font(.largeTitle.bold().monospacedDigit())
-                    Text("asleep").foregroundStyle(.secondary)
-                }
-                HStack {
-                    target("Bedtime", bed, onTarget: goals.isBedtimeOnTarget(bed))
-                    target("Woke", wake, onTarget: goals.isWakeOnTarget(wake))
-                }
-                HStack {
-                    Stat(label: "Deep", value: n.deep.map(Format.duration) ?? "—")
-                    Stat(label: "REM", value: n.rem.map(Format.duration) ?? "—")
-                    Stat(label: "Awake", value: Format.duration(n.awake))
-                }
-            } else {
-                Text(access == .notRequested ? "Connect Apple Health in Settings to see sleep."
-                                             : "No sleep recorded for last night.")
-                    .foregroundStyle(.secondary)
-            }
-            HStack {
-                Stat(label: "HRV", value: hrv.map { "\(Int($0.rounded())) ms" } ?? "—")
-                Stat(label: "Resting HR", value: restingHR.map { "\(Int($0.rounded())) bpm" } ?? "—")
-            }
-            if let line = baselineLine { Text(line).font(.caption).foregroundStyle(.secondary) }
-            if night?.deep != nil {
-                Text("Sleep stages are estimates from your watch.").font(.caption2).foregroundStyle(.tertiary)
-            }
+    private func sleepTile(goals: Goals) -> some View {
+        let night = health.snapshot.nights(calendar: .current)[key]
+        var notes: [String] = []
+        if let n = night {
+            let bed = goals.bedtime.signedMinutes(to: TimeOfDay(of: n.sleepStart, in: .current))
+            let wake = goals.wakeTime.signedMinutes(to: TimeOfDay(of: n.finalWake, in: .current))
+            if bed > goals.sleepToleranceMinutes { notes.append("Late to bed") }
+            if bed < -goals.sleepToleranceMinutes { notes.append("Early to bed") }
+            if abs(wake) > goals.sleepToleranceMinutes { notes.append(wake > 0 ? "Woke late" : "Woke early") }
+            if n.asleep / 60 < Double(goals.sleepTargetMinutes) { notes.append("Short") }
         }
+        return Tile(title: "Sleep", systemImage: "bed.double.fill", tint: .indigo,
+                    detail: night == nil ? "No data" : (notes.isEmpty ? "On target" : notes.prefix(2).joined(separator: " · ")),
+                    open: { open(.sleep(day)) }) {
+            Text(night.map { Format.duration($0.asleep) } ?? "—")
+        } accessory: { EmptyView() }
     }
 
-    private var baselineLine: String? {
-        guard let hrv, let hrvBaseline, hrvBaseline > 0 else { return nil }
-        let pct = Int(((hrv - hrvBaseline) / hrvBaseline * 100).rounded())
-        return pct == 0 ? "HRV is at your 30-day average." : "HRV is \(abs(pct))% \(pct > 0 ? "above" : "below") your 30-day average."
-    }
-
-    private func target(_ label: String, _ time: TimeOfDay, onTarget: Bool) -> some View {
-        Label("\(label) \(time.formatted())", systemImage: onTarget ? "checkmark.circle.fill" : "exclamationmark.circle")
-            .font(.subheadline)
-            .foregroundStyle(onTarget ? .green : .orange)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .accessibilityLabel("\(label) \(time.formatted()), \(onTarget ? "on target" : "off target")")
-    }
-}
-
-private struct MealsCard: View {
-    @Environment(\.modelContext) private var context
-    let timings: [MealType: MealTiming]
-    let windows: [MealType: MealWindow]
-    let meals: [Meal]
-    let consistency: Double?
-
-    var body: some View {
-        Card(title: "Meals", systemImage: "fork.knife", tint: .orange) {
-            ForEach(MealType.targeted, id: \.self) { type in
-                let timing = timings[type] ?? .pending
-                HStack {
-                    Image(systemName: timing.symbol).foregroundStyle(timing.color)
-                    Text(type.rawValue.capitalized)
-                    Spacer()
-                    if let meal = meals.first(where: { $0.mealType == type }) {
-                        Text("\(meal.localTime.formatted()) · \(timing.label)").font(.subheadline).foregroundStyle(.secondary)
-                    } else {
-                        if timing == .pending, let w = windows[type] {
-                            Text("by \(w.end.formatted())").font(.caption).foregroundStyle(.secondary)
-                        }
-                        Button("Log now") { context.logMeal(type) }
-                            .buttonStyle(.bordered).controlSize(.small)
-                    }
-                }
-                .accessibilityElement(children: .combine)
-            }
-            let snacks = meals.filter { $0.mealType == .snack || $0.mealType == .custom }.count
-            if snacks > 0 { Text("\(snacks) snack\(snacks == 1 ? "" : "s") logged").font(.caption).foregroundStyle(.secondary) }
-            if let consistency { Text("Meal routine \(Format.percent(consistency))").font(.caption).foregroundStyle(.secondary) }
-        }
-    }
-}
-
-private struct WaterCard: View {
-    @Environment(\.modelContext) private var context
-    let totalML: Int
-    let targetML: Int
-    let latest: WaterEntry?
-
-    var body: some View {
-        Card(title: "Water", systemImage: "drop.fill", tint: .blue) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(Hydration.progressText(totalML: totalML, targetML: targetML))
-                    .font(.title2.bold().monospacedDigit())
+    private func waterTile(goals: Goals) -> some View {
+        let total = water.reduce(0) { $0 + $1.amountML }
+        return Tile(title: "Water", systemImage: "drop.fill", tint: .blue, open: { open(.water(day)) }) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(Hydration.progressText(totalML: total, targetML: goals.waterTargetML))
                     .contentTransition(.numericText())
-                Spacer()
-                if let latest {
-                    Button("Undo", systemImage: "arrow.uturn.backward") { context.delete(latest) }
-                        .labelStyle(.iconOnly)
-                        .accessibilityLabel("Remove the last \(latest.amountML) millilitres")
-                }
+                ProgressView(value: min(1, Double(total) / Double(max(goals.waterTargetML, 1)))).tint(.blue)
             }
-            ProgressView(value: min(1, Double(totalML) / Double(max(targetML, 1)))).tint(.blue)
-            WaterButtons()
-        }
-    }
-}
-
-private struct SupplementsCard: View {
-    @Environment(\.modelContext) private var context
-    let doses: [SupplementLog]
-    let dayKey: String
-
-    var body: some View {
-        Card(title: "Supplements", systemImage: "pills.fill", tint: .purple) {
-            if doses.isEmpty {
-                Text("Nothing scheduled today.").foregroundStyle(.secondary)
-                NavigationLink("Manage supplements") { SupplementsView() }.font(.subheadline)
-            } else {
-                ForEach(doses) { DoseRow(log: $0) }
-                if doses.contains(where: { $0.status == .pending }) {
-                    Button("Mark all taken", systemImage: "checkmark.circle") { context.markAllTaken(onDay: dayKey) }
-                        .buttonStyle(.bordered).tint(.purple)
-                }
+        } accessory: {
+            PillButton(title: "+250", tint: .blue, accessibilityLabel: "Add 250 millilitres") {
+                context.logWater(250, at: Calendar.current.timestamp(on: day))
             }
         }
     }
-}
 
-private struct ActivityCard: View {
-    let day: Date
-    let steps: Int?
-    let energy: Double?
-    let workouts: [WorkoutSummary]
-    let goals: Goals
-
-    var body: some View {
-        let cal = Calendar.current
-        let dayEnd = cal.date(byAdding: .day, value: 1, to: day) ?? day
-        let today = workouts.filter { $0.start >= day && $0.start < dayEnd }
-        let week = WeeklyReview.week(containing: day, calendar: cal)
-        let thisWeek = workouts.filter { week.contains($0.start) }.count
-
-        Card(title: "Activity", systemImage: "figure.walk", tint: .green) {
-            if steps == nil && workouts.isEmpty {
-                Text("No activity data from Apple Health yet.").foregroundStyle(.secondary)
-            } else {
-                HStack(alignment: .firstTextBaseline) {
-                    Text((steps ?? 0).formatted()).font(.title2.bold().monospacedDigit())
-                    Text("/ \(goals.stepTarget.formatted()) steps").foregroundStyle(.secondary)
+    private func mealsTile(timings: [MealType: MealTiming], goals: Goals) -> some View {
+        let logged = Set(meals.map(\.mealType))
+        let next = MealRoutine.nextMeal(logged: logged, windows: goals.mealWindows,
+                                        now: isToday ? TimeOfDay(of: .now, in: .current) : TimeOfDay(23, 59))
+        return Tile(title: "Meals", systemImage: "fork.knife", tint: .orange,
+                    detail: next == nil ? "All logged" : nil, open: { open(.meals(day)) }) {
+            HStack(spacing: 10) {
+                ForEach(MealType.targeted, id: \.self) { type in
+                    let timing = timings[type] ?? .pending
+                    VStack(spacing: 2) {
+                        Image(systemName: timing.symbol).foregroundStyle(timing.color)
+                        Text(type.rawValue.prefix(1).uppercased()).font(.caption2).foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(type.rawValue) \(timing.label)")
                 }
-                ProgressView(value: min(1, Double(steps ?? 0) / Double(max(goals.stepTarget, 1)))).tint(.green)
-                ForEach(Array(today.enumerated()), id: \.offset) { _, w in
-                    Label("\(w.activityName) · \(Format.duration(w.duration))", systemImage: "figure.run").font(.subheadline)
-                }
-                HStack {
-                    Stat(label: "Workouts this week", value: "\(thisWeek) / \(goals.workoutsPerWeek)")
-                    Stat(label: "Active energy", value: energy.map { "≈ \(Int($0)) kcal" } ?? "—")
+            }
+        } accessory: {
+            if let next {
+                PillButton(title: "+ \(next.rawValue.capitalized)", tint: .orange, accessibilityLabel: "Log \(next.rawValue)") {
+                    if isToday {
+                        context.logMeal(next)
+                    } else {
+                        editing = .new(day: day, type: next)   // past day: pick the time
+                    }
                 }
             }
         }
+    }
+
+    private func supplementsTile(_ statuses: [SupplementStatus]) -> some View {
+        let taken = statuses.filter { $0 == .taken }.count
+        let open = statuses.contains { $0 == .pending || $0 == .missed }
+        return Tile(title: "Supplements", systemImage: "pills.fill", tint: .purple,
+                    detail: statuses.isEmpty ? "None today" : "taken", open: { self.open(.supplements(day)) }) {
+            Text(statuses.isEmpty ? "—" : "\(taken)/\(statuses.count)")
+        } accessory: {
+            if open {
+                PillButton(title: "All ✓", tint: .purple, accessibilityLabel: "Mark all supplements taken") {
+                    context.markAllTaken(onDay: key)
+                }
+            }
+        }
+    }
+
+    private func activityTile(goals: Goals) -> some View {
+        let s = health.snapshot
+        let week = WeeklyReview.week(containing: day, calendar: .current)
+        let workouts = s.workouts.filter { week.contains($0.start) }.count
+        return Tile(title: "Steps", systemImage: "figure.walk", tint: .green,
+                    detail: "\(workouts)/\(goals.workoutsPerWeek) workouts this week", open: { open(.activity(day)) }) {
+            Text(s.steps[key].map { $0.formatted() } ?? "—")
+        } accessory: { EmptyView() }
+    }
+
+    private func checkInTile(_ c: DailyCheckIn?) -> some View {
+        let done = c?.energy != nil || c?.mood != nil || c?.stress != nil
+        return Tile(title: "Check-in", systemImage: "face.smiling", tint: .teal,
+                    detail: done ? "Energy · Mood · Stress" : "Three taps", open: { open(.checkIn(day)) }) {
+            if done {
+                Text([c?.energy, c?.mood, c?.stress].map { $0.map(String.init) ?? "–" }.joined(separator: " · "))
+            } else {
+                Text("How are you?")
+            }
+        } accessory: { EmptyView() }
     }
 }

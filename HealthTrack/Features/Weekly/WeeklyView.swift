@@ -31,7 +31,9 @@ private struct WeeklyContent: View {
         let anchor = cal.date(byAdding: .weekOfYear, value: offset, to: .now) ?? .now
         let week = WeeklyReview.week(containing: anchor, calendar: cal)
         let previous = WeeklyReview.week(containing: week.start.addingTimeInterval(-86_400), calendar: cal)
-        let lastDay = week.end.addingTimeInterval(-1)
+        // The current week only counts finished days, so this morning's untaken doses don't drag it down.
+        let yesterday = cal.date(byAdding: .day, value: -1, to: cal.startOfDay(for: .now)) ?? .now
+        let lastDay = offset == 0 ? max(week.start, min(week.end.addingTimeInterval(-1), yesterday)) : week.end.addingTimeInterval(-1)
         let _ = meals.count
         let tracked = context.trackingStart(calendar: cal) ?? cal.startOfDay(for: .now)
         let records = context.dayRecords(from: max(week.start, tracked), through: lastDay, health: health.snapshot, goals: goals)
@@ -41,53 +43,86 @@ private struct WeeklyContent: View {
 
         List {
             Section {
-                VStack(alignment: .leading) {
-                    Text("Week of \(week.start.formatted(.dateTime.month(.abbreviated).day()))".uppercased())
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Week of \(week.start.formatted(.dateTime.month(.abbreviated).day()))\(offset == 0 && r.days > 0 ? " · so far" : "")".uppercased())
                         .font(.caption.bold()).foregroundStyle(.secondary)
-                    Text(Format.percent(r.consistency)).font(.system(size: 44, weight: .bold, design: .rounded).monospacedDigit())
-                    Text("Consistency").foregroundStyle(.secondary)
+                    HStack(spacing: 16) {
+                        Ring(value: r.consistency, size: 84, lineWidth: 10)
+                        VStack(alignment: .leading, spacing: 6) {
+                            if let best = r.bestHabit {
+                                Label("Best: \(best.title)", systemImage: "star.fill").foregroundStyle(.green)
+                            }
+                            if let first = r.needsAttention.first {
+                                Label("Watch: \(r.needsAttention.map(\.title).joined(separator: ", "))", systemImage: "eye")
+                                    .foregroundStyle(.orange)
+                                    .accessibilityLabel("Needs attention: \(first.title)")
+                            } else if r.days > 0 {
+                                Label("Nothing needs attention", systemImage: "checkmark").foregroundStyle(.secondary)
+                            }
+                        }
+                        .font(.subheadline)
+                    }
                 }
-                .accessibilityElement(children: .combine)
+                .padding(.vertical, 4)
             }
             if r.days == 0 {
                 ContentUnavailableView("Nothing logged this week", systemImage: "calendar",
                                        description: Text("Your review fills in as you log."))
             } else {
-                Section("Sleep") {
-                    LabeledContent("Average", value: r.averageSleepMinutes.map { Format.duration($0 * 60) } ?? "—")
-                    LabeledContent("Bedtime target", value: "\(r.bedtimeHits) / \(r.nightsWithSleep)")
-                    LabeledContent("Wake target", value: "\(r.wakeHits) / \(r.nightsWithSleep)")
-                    LabeledContent("HRV trend", value: trend(r.hrvTrend))
-                    LabeledContent("Resting HR", value: trend(r.restingHRTrend))
-                }
-                Section("Food") {
-                    LabeledContent("Meals on time", value: Format.percent(r.mealsOnTimeRate))
-                    LabeledContent("Late dinners", value: "\(r.lateDinners)")
-                    LabeledContent("Meals logged", value: "\(r.mealsLogged) / \(r.mealsEvaluated)")
-                }
-                Section("Exercise") {
-                    LabeledContent("Workouts", value: "\(r.workouts) / \(r.workoutTarget)")
-                    LabeledContent("Steps", value: r.averageSteps.map { "\(Int($0).formatted()) avg" } ?? "—")
-                }
-                Section("Water") {
-                    LabeledContent("Target achieved", value: "\(r.waterTargetDays) / \(r.days)")
-                }
-                Section("Supplements") {
-                    LabeledContent("Adherence", value: Format.percent(r.supplementAdherence))
-                }
-                Section("Energy") {
-                    LabeledContent("Average", value: r.averageEnergy.map { "\(Format.number($0, digits: 1)) / 5" } ?? "—")
-                }
-                Section("Best habit") {
-                    Text(r.bestHabit?.title ?? "—")
-                }
-                Section("Needs attention") {
-                    if r.needsAttention.isEmpty { Text("Nothing stands out. Nice week.") }
-                    ForEach(r.needsAttention, id: \.self) { Text($0.title) }
+                Section {
+                    Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
+                        GridRow {
+                            Stat(label: "Sleep", value: r.averageSleepMinutes.map { Format.duration($0 * 60) } ?? "—")
+                            Stat(label: "Meals on time", value: Format.percent(r.mealsOnTimeRate))
+                        }
+                        GridRow {
+                            Stat(label: "Workouts", value: "\(r.workouts) / \(r.workoutTarget)")
+                            Stat(label: "Water target", value: "\(r.waterTargetDays) / \(r.days) days")
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    NavigationLink("Full breakdown") { WeeklyBreakdown(review: r) }
                 }
             }
             InsightsSection()
         }
+    }
+}
+
+/// Every weekly number, one tap away from the summary.
+private struct WeeklyBreakdown: View {
+    let review: WeeklyReview
+
+    var body: some View {
+        let r = review
+        List {
+            Section("Sleep") {
+                LabeledContent("Average", value: r.averageSleepMinutes.map { Format.duration($0 * 60) } ?? "—")
+                LabeledContent("Bedtime target", value: "\(r.bedtimeHits) / \(r.nightsWithSleep)")
+                LabeledContent("Wake target", value: "\(r.wakeHits) / \(r.nightsWithSleep)")
+                LabeledContent("HRV trend", value: trend(r.hrvTrend))
+                LabeledContent("Resting HR", value: trend(r.restingHRTrend))
+            }
+            Section("Food") {
+                LabeledContent("Meals on time", value: Format.percent(r.mealsOnTimeRate))
+                LabeledContent("Late dinners", value: "\(r.lateDinners)")
+                LabeledContent("Meals logged", value: "\(r.mealsLogged) / \(r.mealsEvaluated)")
+            }
+            Section("Exercise") {
+                LabeledContent("Workouts", value: "\(r.workouts) / \(r.workoutTarget)")
+                LabeledContent("Steps", value: r.averageSteps.map { "\(Int($0).formatted()) avg" } ?? "—")
+            }
+            Section("Water") {
+                LabeledContent("Target achieved", value: "\(r.waterTargetDays) / \(r.days)")
+            }
+            Section("Supplements") {
+                LabeledContent("Adherence", value: Format.percent(r.supplementAdherence))
+            }
+            Section("Energy") {
+                LabeledContent("Average", value: r.averageEnergy.map { "\(Format.number($0, digits: 1)) / 5" } ?? "—")
+            }
+        }
+        .navigationTitle("Week of \(r.weekStart.formatted(.dateTime.month(.abbreviated).day()))")
     }
 
     private func trend(_ t: TrendDirection?) -> String {

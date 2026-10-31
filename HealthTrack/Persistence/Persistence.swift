@@ -157,7 +157,7 @@ extension ModelContext {
     }
 
     func markAllTaken(onDay key: String, at date: Date = .now) {
-        for log in supplementLogs(from: key, through: key) where log.status == .pending {
+        for log in supplementLogs(from: key, through: key) where log.status == .pending || log.status == .missed {
             setStatus(.taken, for: log, at: date)
         }
     }

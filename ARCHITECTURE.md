@@ -24,6 +24,17 @@ Deviations from the spec's suggested tree:
 - `SleepAggregator` lives in `Core/`, not `Health/`. It works on plain `SleepSample` values, so it's testable without HealthKit.
 - No separate `Repositories/` folder; see the rule above.
 
+## Screens
+
+Minimal by design: summary first, details one tap away, logging never more than one tap.
+
+- **Today**: the date strip shows today and the previous 5 days (swipe or tap) so forgotten entries can be back-filled. Below it are the consistency ring and six tiles (Sleep, Water, Meals, Supplements, Steps, Check-in). Each tile shows one value and at most one quick action (+250, + Dinner, All ✓). Tapping anywhere else opens that day's full page.
+- **Trends**: one row per metric (summary + sparkline), grouped Sleep / Recovery / Activity / Habits. Tap a row for the full chart.
+- **Weekly**: ring, best habit, what to watch, four key numbers. "Full breakdown" holds every number. The current week counts finished days only.
+- **Settings**: goals, supplements, reminders, Apple Health status, Data & Backup, App Installation, Privacy.
+
+Deviation from the spec: there is no **Log** tab (product owner's decision, 2026-10-31). Logging lives on the Today tiles and their pages.
+
 ## Source of truth
 
 | Data | Owner | Notes |

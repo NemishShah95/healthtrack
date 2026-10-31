@@ -2,7 +2,7 @@ import XCTest
 
 /// Smoke tests: the app launches and every tab opens, empty and with 90 days of data.
 final class LaunchTests: XCTestCase {
-    static let tabs = ["Today", "Log", "Trends", "Weekly", "Settings"]
+    static let tabs = ["Today", "Trends", "Weekly", "Settings"]
 
     @MainActor
     private func launch(_ extra: [String]) -> XCUIApplication {
@@ -18,7 +18,7 @@ final class LaunchTests: XCTestCase {
             let button = app.tabBars.buttons[tab]
             XCTAssertTrue(button.waitForExistence(timeout: 10), "\(tab) tab missing")
             button.tap()
-            XCTAssertTrue(app.navigationBars[tab == "Weekly" ? "Weekly" : tab].waitForExistence(timeout: 10), "\(tab) didn't open")
+            XCTAssertTrue(app.navigationBars[tab].waitForExistence(timeout: 10), "\(tab) didn't open")
         }
     }
 
@@ -40,5 +40,18 @@ final class LaunchTests: XCTestCase {
         add.tap()
         XCTAssertTrue(app.staticTexts["0.2 / 2.5 L"].waitForExistence(timeout: 5)
                       || app.staticTexts["0.3 / 2.5 L"].exists)
+    }
+
+    @MainActor
+    func testSwipeBackThroughTheLastFiveDays() {
+        let app = launch(["-mockHealth", "full", "-seedSampleData"])
+        let yesterday = app.buttons.matching(NSPredicate(format: "label BEGINSWITH 'Yesterday'")).firstMatch
+        XCTAssertTrue(yesterday.waitForExistence(timeout: 10))
+        yesterday.tap()
+        XCTAssertTrue(app.navigationBars["Yesterday"].waitForExistence(timeout: 5))
+        app.swipeRight()
+        XCTAssertFalse(app.navigationBars["Yesterday"].waitForExistence(timeout: 2))   // moved further back
+        app.staticTexts["Water"].firstMatch.tap()                                         // tile opens its page
+        XCTAssertTrue(app.buttons["Add 500 millilitres"].waitForExistence(timeout: 5))
     }
 }
