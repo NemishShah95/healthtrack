@@ -1,0 +1,81 @@
+import Foundation
+
+/// Everything known about one day, for weekly aggregation.
+struct DayRecord: Sendable {
+    var day: Date
+    var facts: DayFacts
+    var hrv: Double? = nil
+    var restingHR: Double? = nil
+    var energy: Int? = nil
+    var workouts = 0
+}
+
+struct WeeklyReview: Equatable, Sendable {
+    static let attentionThreshold = 0.7
+
+    var weekStart: Date
+    var days: Int
+    var consistency: Double?
+    var averageSleepMinutes: Double?
+    var nightsWithSleep: Int
+    var bedtimeHits: Int
+    var wakeHits: Int
+    var hrvTrend: TrendDirection?
+    var restingHRTrend: TrendDirection?
+    var mealsOnTimeRate: Double?
+    var mealsLogged: Int
+    var mealsEvaluated: Int
+    var lateDinners: Int
+    var workouts: Int
+    var workoutTarget: Int
+    var averageSteps: Double?
+    var waterTargetDays: Int
+    var supplementAdherence: Double?
+    var averageEnergy: Double?
+    var bestHabit: ScoreComponent?
+    var needsAttention: [ScoreComponent]
+
+    /// The week (per the calendar's first weekday) containing `date`.
+    static func week(containing date: Date, calendar: Calendar) -> DateInterval {
+        calendar.dateInterval(of: .weekOfYear, for: date) ?? DateInterval(start: calendar.startOfDay(for: date), duration: 7 * 86400)
+    }
+
+    init(weekStart: Date, days records: [DayRecord], previousWeek: [DayRecord], goals: Goals) {
+        let facts = records.map(\.facts)
+        let components = facts.map { BehaviorScore.components($0, goals: goals) }
+
+        self.weekStart = weekStart
+        days = records.count
+        consistency = components.compactMap { BehaviorScore.score($0) }.mean
+
+        averageSleepMinutes = facts.compactMap(\.asleepMinutes).mean
+        nightsWithSleep = facts.filter { $0.asleepMinutes != nil }.count
+        bedtimeHits = facts.compactMap(\.bedtime).filter(goals.isBedtimeOnTarget).count
+        wakeHits = facts.compactMap(\.wakeTime).filter(goals.isWakeOnTarget).count
+        hrvTrend = Trend.direction(current: records.compactMap(\.hrv), previous: previousWeek.compactMap(\.hrv))
+        restingHRTrend = Trend.direction(current: records.compactMap(\.restingHR), previous: previousWeek.compactMap(\.restingHR))
+
+        let judged = facts.flatMap(\.mealTimings.values).filter { $0 != .pending }
+        mealsEvaluated = judged.count
+        mealsLogged = judged.filter(\.isLogged).count
+        mealsOnTimeRate = judged.isEmpty ? nil : Double(judged.filter { $0 == .onTime }.count) / Double(judged.count)
+        lateDinners = facts.filter { $0.mealTimings[.dinner] == .late }.count
+
+        workouts = records.reduce(0) { $0 + $1.workouts }
+        workoutTarget = goals.workoutsPerWeek
+        averageSteps = facts.compactMap(\.steps).map(Double.init).mean
+        waterTargetDays = facts.filter { $0.waterML >= goals.waterTargetML }.count
+        supplementAdherence = SupplementAdherence.rate(facts.flatMap(\.supplementStatuses))
+        averageEnergy = records.compactMap(\.energy).map(Double.init).mean
+
+        // Best first; ties go to the higher-weighted component (allCases order).
+        let ranked = ScoreComponent.allCases.enumerated()
+            .compactMap { i, c in components.compactMap { $0[c] }.mean.map { (i, c, $0) } }
+            .sorted { ($0.2, -$0.0) > ($1.2, -$1.0) }
+        bestHabit = ranked.first?.1
+        needsAttention = ranked.dropFirst().reversed()
+            .filter { $0.2 < Self.attentionThreshold }
+            .prefix(2)
+            .map(\.1)
+    }
+}
