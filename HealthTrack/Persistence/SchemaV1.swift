@@ -296,6 +296,9 @@ extension GymExercise {
 }
 
 extension SupplementLog {
+    /// A journal entry ("took it just now") rather than a scheduled dose. Never counted in adherence.
+    var isJournal: Bool { scheduleID == nil }
+
     var status: SupplementStatus {
         get { SupplementStatus(rawValue: statusRaw) ?? .pending }
         set { statusRaw = newValue.rawValue }

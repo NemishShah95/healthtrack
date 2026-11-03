@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | Logic, database, mock Health | `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test` | Xcode installed (no simulator) |
 | App unit + persistence tests | `xcodebuild test -scheme HealthTrack -destination 'platform=iOS Simulator,name=iPhone 17'` | Xcode + iOS Simulator |
-| UI tests | same, `HealthTrackUITests` target (add `-parallel-testing-enabled NO` if clones fail): every tab empty and with 90 days of data, one-tap water, protein + gym logging from Today, swipe back through 5 days | Xcode + iOS Simulator |
+| UI tests | same, `HealthTrackUITests` target (add `-parallel-testing-enabled NO` if clones fail): every tab empty and with 90 days of data, one-tap water, protein + gym logging from Today, vitamins from an empty app (add, mark taken, journal an extra dose), swipe back through 5 days | Xcode + iOS Simulator |
 
 All tests use Swift Testing. Core tests pin the calendar to Europe/London (which has DST) or another named zone, so results don't depend on the machine.
 
@@ -34,6 +34,9 @@ All tests use Swift Testing. Core tests pin the calendar to Europe/London (which
 | Gym sessions: log, edit, repeat, suggestions, cascade delete | ✅ | `GymAndProteinTests` |
 | Protein: range and double-tap guard | ✅ | `GymAndProteinTests` |
 | Workouts counted once when watch + journal overlap | ✅ | `GymAndProteinTests` |
+| Vitamin journal: taken, double-tap guard, excluded from adherence, starts tracking | ✅ | `VitaminJournalTests` |
+| Switching a vitamin to "as needed" keeps history, drops pending doses | ✅ | `VitaminJournalTests` |
+| SchemaV1 unchanged (freeze snapshot) | ✅ | `schemaV1IsFrozen` |
 | Weekly gym/protein summary | ✅ | `ScoreAndReviewTests` |
 | Backups without gym/protein (older format) still decode | ✅ | `ReinstallAndExportTests` |
 | Reinstall reminder dates and warning states | ✅ | `ReinstallAndExportTests` |

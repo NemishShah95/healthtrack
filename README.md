@@ -19,16 +19,17 @@ _As of 2026-11-01. Live details: [BUILD_STATUS.md](BUILD_STATUS.md)._
 | Installed on | iPhone 16 Pro, since 2026-11-01. Works on any iPhone with iOS 17+ (16 Pro, 17, 17 Pro…) |
 | Version | 1.0 (1) |
 | Signing | Free Apple Personal Team. **Must be refreshed from Xcode every ~6 days** (see the routine below) |
-| Tests | 72 pass in the iOS 27.2 simulator (66 logic/database + 6 UI, including Apple's accessibility audit) |
+| Tests | 77 pass in the iOS 27.2 simulator (70 logic/database + 7 UI, including Apple's accessibility audit) |
 | Database | `SchemaV1` is **frozen** now that it holds real data; a test fails on any in-place change |
 | Spec milestones | M0–M18 done. **M19 (compare numbers with the Apple Health app) is still open** |
 
 ### Ready to use
-- **Today**: a consistency ring and tiles with one tap each. Water `+250`, meals `+ Dinner`, protein `+20 g`, supplements `All ✓`, gym `+ Log`, check-in in three taps. Swipe back through the **last 5 days** to fill in anything missed.
+- **Today**: a consistency ring and tiles with one tap each. Water `+250`, meals `+ Dinner`, protein `+20 g`, vitamins `All ✓` / `+ Log`, gym `+ Log`, check-in in three taps. Swipe back through the **last 5 days** to fill in anything missed.
 - **Sleep and recovery**: last night's sleep, bed/wake times against your targets, deep, REM, awake time and interruptions; HRV and resting heart rate against your own 30-day average.
 - **Meals**: quick log, or foods with optional grams (`oats 80 g`); recent and favourite foods; a saved "usual breakfast"; repeat, edit and history.
 - **Gym journal**: body-part focus plus exercises typed one per line (`Squat 5x5 100 kg`, `Treadmill 20 min 3 km`), repeat last session, history and a body-part focus chart. A session also recorded by the watch counts as one workout, not two.
-- **Protein, water and supplements**: daily targets, weekday schedules, taken/skipped/missed, adherence and streaks.
+- **Vitamins**: scheduled vitamins (weekdays, time of day, reminders; taken/skipped/missed, adherence) plus a **vitamin journal**: log any vitamin as taken, including as-needed ones and extra doses, without affecting adherence.
+- **Protein and water**: one-tap logging against daily targets.
 - **Trends**: 7/30/90-day charts for sleep, bed/wake consistency, HRV, resting HR, deep/REM, steps, workouts, water, protein, meals on time, supplements and energy.
 - **Weekly review**: score, best habit, what to watch, key numbers, and observations (patterns, never causes or advice).
 - **Safety**: JSON/CSV export and restore, a Mac-side backup script, a refresh-due banner and notification, opt-in reminders.
@@ -38,7 +39,7 @@ _As of 2026-11-01. Live details: [BUILD_STATUS.md](BUILD_STATUS.md)._
 - **Health data isn't live**: it's read when the app opens or you pull down to refresh. Zepp can be slow to write to Apple Health; open Zepp first if last night is missing.
 - **Expires every 7 days** with free signing. Data survives as long as the app isn't deleted.
 - **One phone only**: no iCloud sync between devices, by design.
-- Protein and gym notes aren't part of the consistency score (the spec's weights are kept).
+- Protein, gym notes and journaled (extra or as-needed) vitamins aren't part of the consistency score (the spec's weights are kept).
 - With 8 tiles, Today scrolls slightly on a 6.3" iPhone.
 - Meal reminders fire at a fixed time even if the meal is already logged. Each supplement has one schedule (take it twice a day = add it twice).
 

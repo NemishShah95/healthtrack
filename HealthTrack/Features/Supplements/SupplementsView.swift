@@ -15,7 +15,7 @@ struct SupplementsView: View {
                             Text(s.name).foregroundStyle(.primary).lineLimit(2)
                             if !s.active { Text("Paused").font(.caption).foregroundStyle(.orange) }
                         }
-                        Text([s.dosageText, s.schedules.first.map(Self.describe)].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                        Text([s.dosageText, s.schedules.first.map(Self.describe) ?? "As needed"].filter { !$0.isEmpty }.joined(separator: " · "))
                             .font(.caption).foregroundStyle(.secondary)
                     }
                 }
@@ -23,11 +23,11 @@ struct SupplementsView: View {
         }
         .overlay {
             if supplements.isEmpty {
-                ContentUnavailableView("No supplements", systemImage: "pills",
-                                       description: Text("Add the vitamins and supplements you take."))
+                ContentUnavailableView("No vitamins yet", systemImage: "pills",
+                                       description: Text("Add the vitamins and supplements you take, on a schedule or as needed."))
             }
         }
-        .navigationTitle("Supplements")
+        .navigationTitle("Vitamins & supplements")
         .toolbar { Button("Add", systemImage: "plus") { adding = true } }
         .sheet(item: $editing) { SupplementEditor(supplement: $0) }
         .sheet(isPresented: $adding) { SupplementEditor(supplement: nil) }
@@ -41,7 +41,8 @@ struct SupplementsView: View {
     }
 }
 
-/// One schedule per supplement in the UI. Take something twice a day? Add it twice ("Vitamin C — evening").
+/// One schedule per vitamin in the UI (take it twice a day? add it twice), or none: "as needed",
+/// logged from the Vitamins page whenever you take it.
 struct SupplementEditor: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -51,6 +52,7 @@ struct SupplementEditor: View {
     @State private var dosage = ""
     @State private var notes = ""
     @State private var active = true
+    @State private var scheduled = true
     @State private var weekdays: Set<Int> = []
     @State private var dayPart: DayPart = .morning
     @State private var reminder = false
@@ -64,14 +66,21 @@ struct SupplementEditor: View {
         NavigationStack {
             Form {
                 Section {
-                    TextField("Name, e.g. Vitamin D", text: $name)
+                    TextField("Name, e.g. Vitamin D or Magnesium", text: $name)
                     TextField("Dose, e.g. 1000 IU", text: $dosage)
                     TextField("Notes", text: $notes, axis: .vertical)
                     Toggle("Active", isOn: $active)
                 } footer: {
-                    if !active { Text("Paused supplements keep their history but aren't scheduled.") }
+                    if !active { Text("Paused vitamins keep their history but aren't scheduled.") }
                 }
 
+                Section {
+                    Toggle("Take on a schedule", isOn: $scheduled)
+                } footer: {
+                    if !scheduled { Text("As needed: log it from the Vitamins page whenever you take it. It won't count as missed.") }
+                }
+
+                if scheduled {
                 Section("Schedule") {
                     HStack(spacing: 4) {
                         ForEach(1...7, id: \.self) { d in
@@ -100,16 +109,17 @@ struct SupplementEditor: View {
                         DatePicker("At", selection: $reminderTime.asDate, displayedComponents: .hourAndMinute)
                     }
                 }
+                }
 
                 if supplement != nil {
                     Section {
-                        Button("Delete supplement and its history", role: .destructive) { confirmDelete = true }
+                        Button("Delete vitamin and its history", role: .destructive) { confirmDelete = true }
                     } footer: {
                         Text("To stop taking it but keep your history, turn off Active instead.")
                     }
                 }
             }
-            .navigationTitle(supplement == nil ? "Add supplement" : "Edit supplement")
+            .navigationTitle(supplement == nil ? "Add vitamin" : "Edit vitamin")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
@@ -143,6 +153,7 @@ struct SupplementEditor: View {
         dosage = s.dosageText
         notes = s.notes
         active = s.active
+        scheduled = !s.schedules.isEmpty
         if let sch = s.schedules.first {
             weekdays = Set(sch.daysOfWeek)
             dayPart = sch.preferredTime ?? .morning
@@ -164,6 +175,12 @@ struct SupplementEditor: View {
         s.dosageText = dosage
         s.notes = notes
         s.updatedAt = .now
+        guard scheduled else {
+            context.makeAsNeeded(s)
+            context.setActive(active, for: s)
+            dismiss()
+            return
+        }
         let sch = s.schedules.first ?? {
             let new = SupplementSchedule(startDate: startDate)
             context.insert(new)
@@ -179,5 +196,83 @@ struct SupplementEditor: View {
         context.setActive(active, for: s)
         context.syncSupplementLogs(days: 0)   // today's dose appears immediately
         dismiss()
+    }
+}
+
+/// The vitamin journal: tap what you took. Logged as taken now (or on the day being viewed).
+struct VitaminLogSheet: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @Query(sort: \Supplement.name) private var supplements: [Supplement]
+    let day: Date
+
+    @State private var name = ""
+    @State private var dose = ""
+    @State private var loggedIDs: [UUID] = []
+    @State private var tapCount = 0
+
+    var body: some View {
+        let isToday = Calendar.current.isDateInToday(day)
+        NavigationStack {
+            Form {
+                if !supplements.isEmpty {
+                    Section {
+                        ForEach(supplements.filter(\.active)) { s in
+                            let done = loggedIDs.contains(s.id)
+                            Button { log(s) } label: {
+                                HStack {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(s.name).foregroundStyle(.primary)
+                                        if !s.dosageText.isEmpty { Text(s.dosageText).font(.caption).foregroundStyle(.secondary) }
+                                    }
+                                    Spacer()
+                                    Image(systemName: done ? "checkmark.circle.fill" : "plus.circle")
+                                        .foregroundStyle(done ? Palette.good : Color.accentColor)
+                                }
+                            }
+                            .accessibilityLabel(done ? "\(s.name), logged" : "Log \(s.name)")
+                        }
+                    } header: {
+                        Text("Tap what you took")
+                    } footer: {
+                        Text("Logged as taken \(isToday ? "now" : "on \(day.formatted(.dateTime.weekday(.wide)))"). Extra doses don't change your adherence.")
+                    }
+                }
+                Section {
+                    TextField("Name, e.g. Vitamin C", text: $name)
+                    TextField("Dose (optional)", text: $dose)
+                    Button("Log it", systemImage: "plus", action: logNew)
+                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                } header: {
+                    Text("Something else")
+                } footer: {
+                    Text("Saved as an as-needed vitamin, so next time it's one tap.")
+                }
+            }
+            .navigationTitle("Log a vitamin")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .sensoryFeedback(.success, trigger: tapCount)
+        }
+    }
+
+    private func log(_ s: Supplement) {
+        if context.logVitamin(s, at: Calendar.current.timestamp(on: day)) != nil {
+            loggedIDs.append(s.id)
+            tapCount += 1
+        }
+    }
+
+    private func logNew() {
+        let trimmed = name.trimmingCharacters(in: .whitespaces)
+        let existing = supplements.first { $0.name.caseInsensitiveCompare(trimmed) == .orderedSame }
+        let s = existing ?? {
+            let new = Supplement(name: trimmed, dosageText: dose.trimmingCharacters(in: .whitespaces))
+            context.insert(new)
+            return new
+        }()
+        log(s)
+        name = ""
+        dose = ""
     }
 }

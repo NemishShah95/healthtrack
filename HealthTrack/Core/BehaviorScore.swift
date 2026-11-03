@@ -11,7 +11,7 @@ enum ScoreComponent: String, Codable, CaseIterable, CodingKeyRepresentable, Send
         case .meals: "Meal routine"
         case .exercise: "Exercise"
         case .hydration: "Hydration"
-        case .supplements: "Supplements"
+        case .supplements: "Vitamins"
         case .movement: "Daily movement"
         }
     }

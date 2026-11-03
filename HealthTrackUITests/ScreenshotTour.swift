@@ -21,7 +21,7 @@ final class ScreenshotTour: XCTestCase {
             add(shot)
         }
         capture("Today")
-        for name in ["Sleep", "Meals", "Protein", "Gym", "Supplements"] {
+        for name in ["Sleep", "Meals", "Protein", "Gym", "Vitamins"] {
             let tile = app.buttons.matching(NSPredicate(format: "label BEGINSWITH %@", name)).firstMatch
             guard tile.exists else { continue }
             tile.tap()

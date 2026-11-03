@@ -35,6 +35,12 @@ Minimal by design: summary first, details one tap away, logging never more than 
 
 Deviation from the spec: there is no **Log** tab (product owner's decision, 2026-10-31). Logging lives on the Today tiles and their pages.
 
+## Vitamins: schedule and journal
+
+- **Scheduled** vitamins get one dose log per scheduled day (pending → taken / skipped / missed). Only these count toward adherence and the Supplements (Vitamins) score component.
+- **Journal entries** ("Log a vitamin") are dose logs with no schedule (`scheduleID == nil`, `SupplementLog.isJournal`), saved as taken at the time logged. They cover as-needed vitamins (no schedule at all) and extra doses, and are excluded from adherence so they can never inflate "% taken".
+- Switching a vitamin to "as needed" removes its schedule and today's/future pending doses; past history stays. No schema change was needed: the V1 model already allowed a dose without a schedule.
+
 ## Gym journal and protein
 
 - **Gym session**: body-part focus (chips), exercises typed one per line, plus notes. `GymLog.parse` reads `Bench press 3x10 60 kg`, `Pull-ups 3 sets 12 reps`, `Treadmill 20 min 3 km`, `Run 5k`. Pounds and miles are converted to kg and km. Volume = sets × reps × kg.

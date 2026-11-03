@@ -19,8 +19,8 @@ iOS app (`xcodebuild`, iOS 27.2 simulator SDK): PASS, 0 warnings
 Logic + database (`swift test`): PASS
 
 ## Tests
-`swift test`: 67 passed, 0 failed (core logic, SwiftData, mock HealthKit, day records, export files, gym/protein)
-Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2): 72 passed, 0 failed, 1 skipped (66 unit + 6 UI incl. accessibility audit; the screenshot tour runs on request)
+`swift test`: 70 passed, 0 failed (core logic, SwiftData, mock HealthKit, day records, export files, gym/protein)
+Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2): 77 passed, 0 failed, 1 skipped (70 unit + 7 UI incl. accessibility audit; the screenshot tour runs on request)
 
 ## Simulator QA
 - [x] iPhone 17, light mode, 90 days of data: every screen reviewed; Sleep detail row height bug fixed
@@ -80,6 +80,7 @@ Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2):
 - [x] M14 Reinstall reminder: detection, profile expiry, banner, Settings → App Installation, refresh notification
 - [x] M15 Export (all/JSON/CSV zip, share sheet, last export date) and JSON restore
 - [x] Added: gym journal (sessions, focus, exercises, repeat last, history, body-part focus chart) and protein tracking
+- [x] Added (2026-11-03): vitamin journal + "as needed" vitamins; Vitamins tile always visible (was hidden until set up). No schema change
 - [x] M16 Full QA (simulator)
 - [x] M17 Transfer package: fresh clone from GitHub passes `swift test` and builds for simulator and device; no machine-specific paths
 - [x] M18 Installed on iPhone 16 Pro (2026-11-01)

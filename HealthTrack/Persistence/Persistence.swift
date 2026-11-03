@@ -233,6 +233,37 @@ extension ModelContext {
         log.takenAt = status == .taken ? date : nil
     }
 
+    /// Journal: records a vitamin as taken, scheduled or not. Kept out of adherence, so extra doses
+    /// never inflate "% taken". nil for an accidental double-tap on the same vitamin.
+    @discardableResult
+    func logVitamin(_ supplement: Supplement, at timestamp: Date = .now, now: Date = .now,
+                    calendar: Calendar = .current) -> SupplementLog? {
+        let previous = supplement.logs.filter(\.isJournal).max { $0.createdAt < $1.createdAt }
+        if let previous, abs(now.timeIntervalSince(previous.createdAt)) < Hydration.duplicateTapInterval { return nil }
+        let log = SupplementLog(day: DayKey.of(timestamp, calendar: calendar), scheduleID: nil,
+                                scheduledMinutes: TimeOfDay(of: timestamp, in: calendar).minutes)
+        log.status = .taken
+        log.takenAt = timestamp
+        log.createdAt = now
+        insert(log)
+        log.supplement = supplement
+        return log
+    }
+
+    /// "As needed": removes the schedule and today's/future pending doses. Past history stays.
+    func makeAsNeeded(_ supplement: Supplement, today: Date = .now, calendar: Calendar = .current) {
+        // Detach before deleting: a deleted object stays in the relationship array until the next save,
+        // and the next sync would otherwise re-create today's dose from the "deleted" schedule.
+        let schedules = supplement.schedules
+        supplement.schedules = []
+        schedules.forEach(delete)
+        let todayKey = DayKey.of(today, calendar: calendar)
+        let dropped = supplement.logs.filter { $0.status == .pending && $0.day >= todayKey }
+        supplement.logs.removeAll { log in dropped.contains { $0 === log } }
+        dropped.forEach(delete)
+        supplement.updatedAt = .now
+    }
+
     func markAllTaken(onDay key: String, at date: Date = .now) {
         for log in supplementLogs(from: key, through: key) where log.status == .pending || log.status == .missed {
             setStatus(.taken, for: log, at: date)

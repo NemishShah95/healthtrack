@@ -117,6 +117,8 @@ private struct DayDashboard: View {
     @Query private var gym: [GymSession]
     @State private var editing: MealEditor.Target?
     @State private var editingGym: GymEditor.Target?
+    @State private var addingVitamin = false
+    @State private var loggingVitamin = false
     let day: Date
     let key: String
     let isToday: Bool
@@ -140,7 +142,7 @@ private struct DayDashboard: View {
     var body: some View {
         let goals = settingsRows.first?.goals ?? Goals()
         let checkIn = checkIns.first
-        let statuses = doses.map(\.status)   // reading these re-renders on every tick
+        let _ = doses.map(\.statusRaw)   // reading these re-renders on every tick
         let record = context.dayRecords(from: day, through: day, health: health.snapshot, goals: goals).first
         let components = record.map { BehaviorScore.components($0.facts, goals: goals) } ?? [:]
         let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: typeSize.isAccessibilitySize ? 1 : 2)
@@ -157,7 +159,7 @@ private struct DayDashboard: View {
                     mealsTile(timings: record?.facts.mealTimings ?? [:], goals: goals)
                     proteinTile(goals: goals)
                     gymTile()
-                    if !supplements.isEmpty { supplementsTile(statuses) }
+                    vitaminsTile()
                     activityTile(goals: goals)
                     checkInTile(checkIn)
                 }
@@ -167,6 +169,8 @@ private struct DayDashboard: View {
         .refreshable { await health.refresh() }
         .sheet(item: $editing) { MealEditor(target: $0) }
         .sheet(item: $editingGym) { GymEditor(target: $0) }
+        .sheet(isPresented: $addingVitamin) { SupplementEditor(supplement: nil) }
+        .sheet(isPresented: $loggingVitamin) { VitaminLogSheet(day: day) }
     }
 
     private func proteinTile(goals: Goals) -> some View {
@@ -284,17 +288,33 @@ private struct DayDashboard: View {
         }
     }
 
-    private func supplementsTile(_ statuses: [SupplementStatus]) -> some View {
-        let taken = statuses.filter { $0 == .taken }.count
-        let open = statuses.contains { $0 == .pending || $0 == .missed }
-        return Tile(title: "Supplements", systemImage: "pills.fill", tint: .purple,
-                    detail: statuses.isEmpty ? nil : "taken", open: { self.open(.supplements(day)) }) {
-            if statuses.isEmpty { Placeholder("None today") } else { Text("\(taken)/\(statuses.count)") }
+    /// Scheduled doses ("2/3"), plus journal entries logged on top ("+1 extra").
+    private func vitaminsTile() -> some View {
+        let scheduled = doses.filter { !$0.isJournal }.map(\.status)
+        let extra = doses.filter(\.isJournal).count
+        let taken = scheduled.filter { $0 == .taken }.count
+        let outstanding = scheduled.contains { $0 == .pending || $0 == .missed }
+        let detail: String? = scheduled.isEmpty ? nil : (extra > 0 ? "+\(extra) extra" : "taken")
+        return Tile(title: "Vitamins", systemImage: "pills.fill", tint: .purple, detail: detail,
+                    open: { open(.supplements(day)) }) {
+            if supplements.isEmpty {
+                Placeholder("None added")
+            } else if !scheduled.isEmpty {
+                Text("\(taken)/\(scheduled.count)")
+            } else if extra > 0 {
+                Text("\(extra) taken")
+            } else {
+                Placeholder("None today")
+            }
         } accessory: {
-            if open {
-                PillButton(title: "All ✓", tint: .purple, accessibilityLabel: "Mark all supplements taken") {
+            if supplements.isEmpty {
+                PillButton(title: "+ Add", tint: .purple, accessibilityLabel: "Add a vitamin") { addingVitamin = true }
+            } else if outstanding {
+                PillButton(title: "All ✓", tint: .purple, accessibilityLabel: "Mark all vitamins taken") {
                     context.markAllTaken(onDay: key)
                 }
+            } else {
+                PillButton(title: "+ Log", tint: .purple, accessibilityLabel: "Log a vitamin") { loggingVitamin = true }
             }
         }
     }

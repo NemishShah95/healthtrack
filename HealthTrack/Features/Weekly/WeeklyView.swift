@@ -203,7 +203,7 @@ private struct InsightsSection: View {
         let hits = recentNights.filter { goals.isBedtimeOnTarget(TimeOfDay(of: $0.sleepStart, in: calendar)) }.count
         if let i = Insights.bedtimeTargetRate(hits: hits, nights: recentNights.count, period: "in the last 30 days") { out.append(i) }
 
-        let logs = context.supplementLogs(from: startKey, through: todayKey).filter { $0.day < todayKey }
+        let logs = context.supplementLogs(from: startKey, through: todayKey).filter { $0.day < todayKey && !$0.isJournal }
         for (name, group) in Dictionary(grouping: logs, by: { $0.supplement?.name ?? "" }) where !name.isEmpty {
             if let i = Insights.supplementLogged(name: name, taken: group.filter { $0.status == .taken }.count, scheduled: group.count) {
                 out.append(i)

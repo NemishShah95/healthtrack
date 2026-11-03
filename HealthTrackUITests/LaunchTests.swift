@@ -64,6 +64,29 @@ final class LaunchTests: XCTestCase {
         XCTAssertTrue(tile(app, "Gym").label.contains("Legs") && tile(app, "Gym").label.contains("1 exercise"))
     }
 
+    @MainActor
+    func testVitaminsFromAnEmptyAppAndJournal() {
+        let app = launch(["-mockHealth", "empty"])
+        XCTAssertTrue(tile(app, "Vitamins").waitForExistence(timeout: 10))
+        XCTAssertTrue(tile(app, "Vitamins").label.contains("None added"))
+        app.buttons["Add a vitamin"].firstMatch.tap()
+        let name = app.textFields["Name, e.g. Vitamin D or Magnesium"]
+        XCTAssertTrue(name.waitForExistence(timeout: 5))
+        name.tap()
+        name.typeText("Vitamin D")
+        app.buttons["Save"].tap()
+        XCTAssertTrue(tile(app, "Vitamins").label.contains("0/1"))
+
+        app.buttons["Mark all vitamins taken"].firstMatch.tap()
+        XCTAssertTrue(tile(app, "Vitamins").label.contains("1/1"))
+
+        app.buttons["Log a vitamin"].firstMatch.tap()          // journal an extra dose from the tile
+        app.buttons["Log Vitamin D"].firstMatch.tap()
+        app.buttons["Done"].tap()
+        XCTAssertTrue(tile(app, "Vitamins").label.contains("+1 extra"))
+        XCTAssertTrue(tile(app, "Vitamins").label.contains("1/1"))   // adherence unchanged
+    }
+
     /// Apple's automated accessibility audit (VoiceOver labels, contrast, hit targets, clipped text) on every tab.
     @MainActor
     func testAccessibilityAuditOnEveryTab() throws {

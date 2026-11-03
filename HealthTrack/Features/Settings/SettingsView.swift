@@ -10,7 +10,7 @@ struct SettingsView: View {
                     NavigationLink("Sleep, meals, water & activity") { GoalsView() }
                 }
                 Section("Logging") {
-                    NavigationLink("Supplements") { SupplementsView() }
+                    NavigationLink("Vitamins & supplements") { SupplementsView() }
                     NavigationLink("Reminders") { RemindersView() }
                 }
                 HealthAccessSection()
@@ -157,7 +157,7 @@ struct RemindersView: View {
                 if r.checkIn { DatePicker("At", selection: $r.checkInTime.asDate, displayedComponents: .hourAndMinute) }
                 Toggle("Weekly backup (Sundays)", isOn: $r.backup)
             } footer: {
-                Text("Supplement reminders are set on each supplement. The app-refresh reminder is in App Installation.")
+                Text("Vitamin reminders are set on each vitamin. The app-refresh reminder is in App Installation.")
             }
         }
         .navigationTitle("Reminders")

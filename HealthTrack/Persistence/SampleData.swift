@@ -15,6 +15,9 @@ enum SampleData {
             ("Vitamin C", "500 mg", [], .morning), ("Iron", "1 tablet", [2, 4, 6], .afternoon),
             ("Magnesium glycinate", "200 mg", [], .evening),
         ]
+        let zinc = Supplement(name: "Zinc", dosageText: "15 mg, as needed")   // journal-only vitamin
+        zinc.createdAt = first
+        ctx.insert(zinc)
         for (name, dose, weekdays, part) in supplements {
             let s = Supplement(name: name, dosageText: dose)
             s.createdAt = first
@@ -61,6 +64,10 @@ enum SampleData {
                 let entry = ProteinEntry(grams: [20, 25, 30, 35].randomElement(using: &rng)!, label: ["", "whey shake", "eggs", "paneer"].randomElement(using: &rng)!,
                                          at: at(9 + i * 4, 0, spread: 60), createdAt: day)
                 ctx.insert(entry)
+            }
+            if Double.random(in: 0...1, using: &rng) < 0.3 {
+                let t = at(21, 0, spread: 30)
+                ctx.logVitamin(zinc, at: t, now: t, calendar: calendar)
             }
             if !isToday, Double.random(in: 0...1, using: &rng) < 0.8 {
                 let c = ctx.checkIn(onDay: DayKey.of(day, calendar: calendar))

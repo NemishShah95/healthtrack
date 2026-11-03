@@ -260,7 +260,7 @@ enum TrendSeries {
                          target: Double(goals.proteinTargetGrams), format: { "\(Int($0.rounded())) g" }),
             MetricSeries(group: .habits, title: "Meals on time", unit: "% on time", points: inRange(mealsOnTime), previous: previous(mealsOnTime),
                          target: 100, format: percent),
-            MetricSeries(group: .habits, title: "Supplements taken", unit: "% taken", points: inRange(supplements), previous: previous(supplements),
+            MetricSeries(group: .habits, title: "Vitamins taken", unit: "% taken", points: inRange(supplements), previous: previous(supplements),
                          target: 100, format: percent),
             MetricSeries(group: .habits, title: "Energy", unit: "1–5", points: inRange(energy), previous: previous(energy), style: .line,
                          format: { Format.number($0, digits: 1) }),

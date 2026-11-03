@@ -135,6 +135,7 @@ import Testing
         source.insert(sch)
         sch.supplement = d
         source.syncSupplementLogs(today: date("2026-10-26 12:00", cal), days: 2, calendar: cal)
+        source.logVitamin(d, at: date("2026-10-26 13:00", cal), now: date("2026-10-26 13:00", cal), calendar: cal)   // journal entry
         source.checkIn(onDay: "2026-10-26").mood = 5
         source.settings().favoriteFoods = ["oats"]
         source.logGym(focus: [.legs], exercises: GymLog.parse("Squat 5x5 100 kg\nBike 10 min"), at: date("2026-10-26 18:00", cal), calendar: cal)
@@ -143,11 +144,12 @@ import Testing
 
         let bundle = try ExportBundle.decode(source.exportBundle(appVersion: "test").jsonData())
         #expect(bundle.meals.count == 1 && bundle.water.count == 1 && bundle.supplements.count == 1)
-        #expect(bundle.supplementLogs.count == 3 && bundle.checkIns.count == 1)
+        #expect(bundle.supplementLogs.count == 4 && bundle.checkIns.count == 1)
+        #expect(bundle.supplementLogs.filter { $0.scheduleID == nil }.count == 1)
 
         let target = try memoryContext()
         #expect(bundle.gymSessions?.first?.exercises.count == 2 && bundle.protein?.count == 1)
-        #expect(try target.importBundle(bundle) == 9)       // + 1 gym session, 1 protein entry
+        #expect(try target.importBundle(bundle) == 10)      // + 1 gym session, 1 protein entry, 1 vitamin journal entry
         #expect(try target.importBundle(bundle) == 0)       // second import adds nothing
         #expect(target.exportBundle(appVersion: "test", now: bundle.exportedAt) == bundle)
     }
@@ -161,7 +163,7 @@ import Testing
     SampleData.seedIfEmpty(ctx, now: now, calendar: cal)
     let meals = try ctx.fetchCount(FetchDescriptor<Meal>())
     #expect(meals > 200)
-    #expect(try ctx.fetchCount(FetchDescriptor<Supplement>()) == 5)
+    #expect(try ctx.fetchCount(FetchDescriptor<Supplement>()) == 6)   // 5 scheduled + Zinc as needed
     #expect(ctx.supplementLogs(from: "2026-08-03", through: "2026-10-31").count > 350)
     SampleData.seedIfEmpty(ctx, now: now, calendar: cal)
     #expect(try ctx.fetchCount(FetchDescriptor<Meal>()) == meals)
@@ -239,5 +241,55 @@ import Testing
         #expect(records.last?.protein == 40 && records[1].protein == nil)
         #expect(records.last?.bodyParts == [.legs])
         #expect(ctx.workoutsThisWeek(containing: now, health: health, goals: Goals(), now: now, calendar: cal) == 2)
+    }
+}
+
+@MainActor
+@Suite struct VitaminJournalTests {
+    let cal = calendar()
+    let now = date("2026-10-28 10:00", calendar())
+
+    @Test func journalEntriesAreTakenButNeverCountInAdherence() throws {
+        let ctx = ModelContext(try Persistence.makeContainer(inMemory: true))
+        let vitaminD = Supplement(name: "Vitamin D")
+        ctx.insert(vitaminD)
+        let daily = SupplementSchedule(startDate: date("2026-10-20", cal))
+        ctx.insert(daily)
+        daily.supplement = vitaminD
+        let zinc = Supplement(name: "Zinc")            // as needed: no schedule
+        ctx.insert(zinc)
+        ctx.syncSupplementLogs(today: now, days: 3, calendar: cal)
+        #expect(zinc.logs.isEmpty)                     // as-needed vitamins never get pending or missed doses
+
+        #expect(ctx.logVitamin(zinc, at: now, now: now, calendar: cal) != nil)
+        #expect(ctx.logVitamin(zinc, at: now, now: now + 0.5, calendar: cal) == nil)       // double-tap
+        #expect(ctx.logVitamin(vitaminD, at: now, now: now + 1, calendar: cal) != nil)     // an extra dose on top of the schedule
+
+        let today = ctx.supplementLogs(from: "2026-10-28", through: "2026-10-28")
+        #expect(today.filter(\.isJournal).count == 2 && today.filter(\.isJournal).allSatisfy { $0.status == .taken })
+        let record = try #require(ctx.dayRecords(from: now, through: now, health: HealthSnapshot(), goals: Goals(), now: now, calendar: cal).first)
+        #expect(record.facts.supplementStatuses == [.pending])   // only the scheduled dose is judged
+    }
+
+    @Test func switchingToAsNeededDropsPendingDosesAndKeepsHistory() throws {
+        let ctx = ModelContext(try Persistence.makeContainer(inMemory: true))
+        let iron = Supplement(name: "Iron")
+        ctx.insert(iron)
+        let schedule = SupplementSchedule(startDate: date("2026-10-20", cal))
+        ctx.insert(schedule)
+        schedule.supplement = iron
+        ctx.syncSupplementLogs(today: now, days: 3, calendar: cal)   // 25, 26, 27 missed; 28 pending
+        ctx.makeAsNeeded(iron, today: now, calendar: cal)
+        ctx.syncSupplementLogs(today: now, days: 3, calendar: cal)
+        #expect(iron.schedules.isEmpty)
+        #expect(iron.logs.map(\.status).sorted { $0.rawValue < $1.rawValue } == [.missed, .missed, .missed])
+    }
+
+    @Test func aJournaledVitaminStartsTracking() throws {
+        let ctx = ModelContext(try Persistence.makeContainer(inMemory: true))
+        let c = Supplement(name: "Vitamin C")
+        ctx.insert(c)
+        ctx.logVitamin(c, at: now, now: now, calendar: cal)
+        #expect(ctx.trackingStart(calendar: cal) == date("2026-10-28", cal))
     }
 }

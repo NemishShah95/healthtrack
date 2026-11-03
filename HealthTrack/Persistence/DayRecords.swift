@@ -17,12 +17,17 @@ extension ModelContext {
             d.fetchLimit = 1
             return (try? fetch(d).first).flatMap { $0.map(date) }
         }
+        var journal = FetchDescriptor<SupplementLog>(predicate: #Predicate { $0.scheduleID == nil },
+                                                     sortBy: [SortDescriptor(\.createdAt)])
+        journal.fetchLimit = 1
+        let journaledVitamin = (try? fetch(journal).first)?.takenAt
         let firsts = [
             first(SortDescriptor(\Meal.timestamp)) { $0.timestamp },
             first(SortDescriptor(\WaterEntry.timestamp)) { $0.timestamp },
             first(SortDescriptor(\ProteinEntry.timestamp)) { $0.timestamp },
             first(SortDescriptor(\GymSession.timestamp)) { $0.timestamp },
             first(SortDescriptor(\DailyCheckIn.createdAt)) { $0.createdAt },
+            journaledVitamin,
         ].compactMap { $0 }
         return firsts.min().map { calendar.startOfDay(for: $0) }
     }
@@ -88,7 +93,7 @@ extension ModelContext {
                 }
                 f.waterML = (water[key] ?? []).reduce(0) { $0 + $1.amountML }
             }
-            f.supplementStatuses = (doses[key] ?? []).map {
+            f.supplementStatuses = (doses[key] ?? []).filter { !$0.isJournal }.map {
                 SupplementAdherence.resolved($0.status, scheduledDay: day, today: now, calendar: calendar)
             }
             f.steps = health.steps[key]

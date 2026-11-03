@@ -53,7 +53,7 @@ struct ConsistencyDetail: View {
         case .meals: "Breakfast, lunch and dinner inside their windows. Off-window counts half. Weight 20%."
         case .exercise: "Workouts in the last 7 days vs \(g.workoutsPerWeek) a week. Weight 20%."
         case .hydration: "Water vs \(String(format: "%.1f", Double(g.waterTargetML) / 1000)) L a day. Weight 15%."
-        case .supplements: "Scheduled doses taken. Weight 10%."
+        case .supplements: "Scheduled vitamins taken. Extra ones you log don't count. Weight 10%."
         case .movement: "Steps vs \(g.stepTarget.formatted()). Weight 10%."
         }
     }
@@ -207,9 +207,13 @@ struct ProteinDetail: View {
     }
 }
 
+/// One day's vitamins: scheduled doses to tick, plus anything else you took (the journal).
 struct SupplementsDetail: View {
     @Environment(\.modelContext) private var context
     @Query private var doses: [SupplementLog]
+    @Query private var supplements: [Supplement]
+    @State private var logging = false
+    @State private var adding = false
     let day: Date
     let key: String
 
@@ -223,22 +227,52 @@ struct SupplementsDetail: View {
     var body: some View {
         let isPast = !Calendar.current.isDateInToday(day)
         let _ = doses.map(\.statusRaw)
-        let sorted = context.supplementLogs(from: key, through: key)
+        let all = context.supplementLogs(from: key, through: key)
+        let scheduled = all.filter { !$0.isJournal }
+        let extra = all.filter(\.isJournal).sorted { ($0.takenAt ?? $0.createdAt) < ($1.takenAt ?? $1.createdAt) }
         List {
-            Section {
-                if sorted.isEmpty { Text("Nothing scheduled.").foregroundStyle(.secondary) }
-                ForEach(sorted) { DoseRow(log: $0, isPast: isPast) }
-                if sorted.contains(where: { $0.status == .pending || $0.status == .missed }) {
-                    Button("Mark all taken", systemImage: "checkmark.circle") { context.markAllTaken(onDay: key) }
+            if supplements.isEmpty {
+                ContentUnavailableView {
+                    Label("No vitamins yet", systemImage: "pills")
+                } description: {
+                    Text("Add the vitamins and supplements you take, on a schedule or as needed.")
+                } actions: {
+                    Button("Add a vitamin") { adding = true }.buttonStyle(.borderedProminent)
                 }
-            } footer: {
-                if isPast { Text("Forgot to tick something? You can fix it here for up to five days.") }
+            } else {
+                Section {
+                    Button("Log a vitamin…", systemImage: "plus.circle") { logging = true }
+                } footer: {
+                    Text("For anything you take: as-needed vitamins, or an extra dose. Doesn't change your adherence.")
+                }
+                Section {
+                    if scheduled.isEmpty { Text("Nothing scheduled.").foregroundStyle(.secondary) }
+                    ForEach(scheduled) { DoseRow(log: $0, isPast: isPast) }
+                    if scheduled.contains(where: { $0.status == .pending || $0.status == .missed }) {
+                        Button("Mark all taken", systemImage: "checkmark.circle") { context.markAllTaken(onDay: key) }
+                    }
+                } header: {
+                    Text("Scheduled")
+                } footer: {
+                    if isPast { Text("Forgot to tick something? You can fix it here for up to five days.") }
+                }
+                if !extra.isEmpty {
+                    Section("Also taken") {
+                        ForEach(extra) { log in
+                            LabeledContent(log.supplement?.name ?? "Vitamin",
+                                           value: (log.takenAt ?? log.createdAt).formatted(date: .omitted, time: .shortened))
+                        }
+                        .onDelete { for i in $0 { context.delete(extra[i]) } }
+                    }
+                }
             }
             Section {
-                NavigationLink("Manage supplements") { SupplementsView() }
+                NavigationLink("Manage vitamins") { SupplementsView() }
             }
         }
-        .navigationTitle(title("Supplements", day))
+        .navigationTitle(title("Vitamins", day))
+        .sheet(isPresented: $logging) { VitaminLogSheet(day: day) }
+        .sheet(isPresented: $adding) { SupplementEditor(supplement: nil) }
     }
 }
 
