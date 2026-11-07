@@ -13,44 +13,48 @@ struct TrendsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Picker("Period", selection: $days) {
-                    Text("7 days").tag(7)
-                    Text("30 days").tag(30)
-                    Text("90 days").tag(90)
-                }
-                .pickerStyle(.segmented)
-                .listRowBackground(Color.clear)
-                .listRowInsets(EdgeInsets())
+                Group {
+                    Picker("Period", selection: $days) {
+                        Text("7 days").tag(7)
+                        Text("30 days").tag(30)
+                        Text("90 days").tag(90)
+                    }
+                    .pickerStyle(.segmented)
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
 
-                let _ = (meals.count, water.count)
-                let series = TrendSeries.all(days: days, context: context, health: health.snapshot,
-                                             goals: settingsRows.first?.goals ?? Goals())
-                let focus = TrendSeries.bodyPartCounts(days: days, context: context)
-                ForEach(MetricSeries.Group.allCases, id: \.self) { group in
-                    Section(group.rawValue) {
-                        ForEach(series.filter { $0.group == group }) { s in
-                            NavigationLink {
-                                ScrollView { MetricChart(series: s).padding() }
-                                    .background(Color(.systemGroupedBackground))
-                                    .navigationTitle(s.title)
-                                    .navigationBarTitleDisplayMode(.inline)
-                            } label: {
-                                TrendRow(series: s)
-                            }
-                        }
-                        if group == .activity {
-                            NavigationLink {
-                                BodyPartFocusView(counts: focus, days: days)
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Body part focus")
-                                    Text(BodyPartFocusView.summary(focus)).font(.caption).foregroundStyle(.secondary)
+                    let _ = (meals.count, water.count)
+                    let series = TrendSeries.all(days: days, context: context, health: health.snapshot,
+                                                 goals: settingsRows.first?.goals ?? Goals())
+                    let focus = TrendSeries.bodyPartCounts(days: days, context: context)
+                    ForEach(MetricSeries.Group.allCases, id: \.self) { group in
+                        Section {
+                            ForEach(series.filter { $0.group == group }) { s in
+                                NavigationLink {
+                                    ScrollView { MetricChart(series: s).padding() }
+                                        .appScreen()
+                                        .navigationTitle(s.title)
+                                        .navigationBarTitleDisplayMode(.inline)
+                                } label: {
+                                    TrendRow(series: s)
                                 }
                             }
-                        }
+                            if group == .activity {
+                                NavigationLink {
+                                    BodyPartFocusView(counts: focus, days: days)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text("Body part focus")
+                                        Text(BodyPartFocusView.summary(focus)).font(.caption).foregroundStyle(Palette.secondary)
+                                    }
+                                }
+                            }
+                        } header: { Header(group.rawValue) }
                     }
                 }
+                .appRows()
             }
+            .appScreen()
             .navigationTitle("Trends")
             .refreshable { await health.refresh() }
         }
@@ -64,14 +68,15 @@ struct TrendRow: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(series.title)
-                Text(series.resolvedSummary).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                Text(series.title).foregroundStyle(Palette.text)
+                Text(series.resolvedSummary).font(.caption).foregroundStyle(Palette.secondary).lineLimit(2)
             }
             Spacer(minLength: 8)
             if series.points.count >= 2 {
                 Chart(series.points, id: \.date) { p in
                     LineMark(x: .value("Day", p.date), y: .value(series.unit, p.value))
                         .interpolationMethod(.monotone)
+                        .foregroundStyle(Palette.lime)
                 }
                 .chartXAxis(.hidden)
                 .chartYAxis(.hidden)
@@ -120,49 +125,67 @@ struct MetricChart: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(series.title).font(.headline)
-            Text(series.resolvedSummary).font(.subheadline).foregroundStyle(.secondary)
+            Text(series.title).font(.headline.weight(.regular)).foregroundStyle(Palette.text)
+            Text(series.resolvedSummary).font(.subheadline).foregroundStyle(Palette.secondary)
             if series.points.isEmpty {
                 Text("No data in this period yet.")
-                    .font(.subheadline).foregroundStyle(.secondary)
+                    .font(.subheadline).foregroundStyle(Palette.secondary)
                     .frame(maxWidth: .infinity, minHeight: 80)
             } else {
                 Chart {
                     if let band = series.band {
                         RectangleMark(yStart: .value("From", band.lowerBound), yEnd: .value("To", band.upperBound))
-                            .foregroundStyle(.green.opacity(0.12))
+                            .foregroundStyle(Palette.teal.opacity(0.16))
                     }
                     ForEach(series.points, id: \.date) { p in
                         if series.style == .bar {
                             BarMark(x: .value("Day", p.date, unit: .day), y: .value(series.unit, p.value))
-                                .foregroundStyle(.tint)
+                                .foregroundStyle(LinearGradient(colors: [Palette.lime, Palette.limeDeep.opacity(0.6)], startPoint: .top, endPoint: .bottom))
+                                .cornerRadius(3)
                         } else if series.style == .line {
+                            AreaMark(x: .value("Day", p.date, unit: .day), y: .value(series.unit, p.value))
+                                .interpolationMethod(.monotone)
+                                .foregroundStyle(LinearGradient(colors: [Palette.lime.opacity(0.28), .clear], startPoint: .top, endPoint: .bottom))
                             LineMark(x: .value("Day", p.date, unit: .day), y: .value(series.unit, p.value))
                                 .interpolationMethod(.monotone)
+                                .foregroundStyle(Palette.lime)
                             PointMark(x: .value("Day", p.date, unit: .day), y: .value(series.unit, p.value))
                                 .symbolSize(series.points.count > 40 ? 8 : 24)
+                                .foregroundStyle(Palette.lime)
                         } else {
                             PointMark(x: .value("Day", p.date, unit: .day), y: .value(series.unit, p.value))
+                                .foregroundStyle(Palette.lime)
                         }
                     }
                     if let target = series.target {
                         RuleMark(y: .value(series.targetLabel, target))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4, 3]))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Palette.text.opacity(0.5))
                             .annotation(position: .top, alignment: .leading) {
-                                Text(series.targetLabel).font(.caption2).foregroundStyle(.secondary)
+                                Text(series.targetLabel).font(.caption2).foregroundStyle(Palette.secondary)
                             }
                     }
                 }
-                .chartXAxis { AxisMarks(values: .automatic(desiredCount: 4)) }
-                .frame(height: 160)
+                .chartXAxis {
+                    AxisMarks(values: .automatic(desiredCount: 4)) { _ in
+                        AxisGridLine().foregroundStyle(Palette.track)
+                        AxisValueLabel().foregroundStyle(Palette.secondary)
+                    }
+                }
+                .chartYAxis {
+                    AxisMarks { _ in
+                        AxisGridLine().foregroundStyle(Palette.track)
+                        AxisValueLabel().foregroundStyle(Palette.secondary)
+                    }
+                }
+                .frame(height: 180)
                 .accessibilityLabel("\(series.title). \(series.resolvedSummary)")
             }
-            if let note = series.note { Text(note).font(.caption).foregroundStyle(.secondary) }
+            if let note = series.note { Text(note).font(.caption).foregroundStyle(Palette.secondary) }
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+        .card()
     }
 }
 
@@ -230,6 +253,9 @@ enum TrendSeries {
         let workoutPoints = weekly.filter { $0.key >= WeeklyReview.week(containing: start, calendar: calendar).start }
             .sorted { $0.key < $1.key }.map { (date: $0.key, value: $0.value) }
         let percent: (Double) -> String = { "\(Int($0.rounded()))%" }
+        // Your usual range over the period (median ± MAD), drawn as a band instead of a plain average line.
+        let hrvRange = UsualRange(inRange(health.hrv).map(\.value))
+        let restingRange = UsualRange(inRange(health.restingHR).map(\.value))
 
         return [
             MetricSeries(group: .sleep, title: "Sleep duration", unit: "Hours", points: inRange(asleep), previous: previous(asleep),
@@ -241,10 +267,10 @@ enum TrendSeries {
                          target: 0, targetLabel: goals.wakeTime.formatted(), band: -tolerance...tolerance,
                          summary: onTarget(wakeDeviation)),
             MetricSeries(group: .recovery, title: "HRV", unit: "ms", points: inRange(health.hrv), previous: previous(health.hrv), style: .line,
-                         target: inRange(health.hrv).map(\.value).mean, targetLabel: "Your average",
-                         format: { "\(Int($0.rounded())) ms" }, note: "Compare with your own baseline, not with other people."),
+                         target: hrvRange?.median, targetLabel: "Your usual", band: hrvRange.map { $0.low...$0.high },
+                         format: { "\(Int($0.rounded())) ms" }, note: "The band is your usual range. Compare with yourself, not with other people."),
             MetricSeries(group: .recovery, title: "Resting heart rate", unit: "bpm", points: inRange(health.restingHR), previous: previous(health.restingHR),
-                         style: .line, target: inRange(health.restingHR).map(\.value).mean, targetLabel: "Your average",
+                         style: .line, target: restingRange?.median, targetLabel: "Your usual", band: restingRange.map { $0.low...$0.high },
                          format: { "\(Int($0.rounded())) bpm" }),
             MetricSeries(group: .sleep, title: "Deep sleep", unit: "Minutes", points: inRange(deep), previous: previous(deep),
                          format: { Format.duration($0 * 60) }, note: "Stages are estimates from your watch."),

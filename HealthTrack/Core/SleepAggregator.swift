@@ -8,7 +8,7 @@ enum SleepStage: String, Codable, Sendable {
 }
 
 /// Plain copy of a HealthKit sleep sample, so aggregation is testable without HealthKit.
-struct SleepSample: Sendable {
+struct SleepSample: Equatable, Sendable {
     var start: Date
     var end: Date
     var stage: SleepStage
@@ -31,6 +31,8 @@ struct NightSummary: Equatable, Sendable {
     var core: TimeInterval?
     var deep: TimeInterval?
     var rem: TimeInterval?
+    /// The chosen source's samples for this night, oldest first: what the sleep chart draws.
+    var samples: [SleepSample] = []
 }
 
 enum SleepAggregator {
@@ -120,7 +122,8 @@ enum SleepAggregator {
             }.count,
             core: stage(.core),
             deep: stage(.deep),
-            rem: stage(.rem)
+            rem: stage(.rem),
+            samples: samples.sorted { $0.start < $1.start }
         )
     }
 }

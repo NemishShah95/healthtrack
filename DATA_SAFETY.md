@@ -9,7 +9,7 @@ HealthTrack only **reads** these. They stay in Apple Health no matter what happe
 
 ## 2. What lives in HealthTrack (SwiftData, on the iPhone)
 
-Meals and food entries, saved meals and favourite foods, water logs, protein entries, gym sessions and exercises, supplements, supplement schedules and logs, daily check-ins, your goals and settings, and the app-refresh dates.
+Meals and food entries, saved meals and favourite foods, water logs, protein entries, gym sessions and exercises, supplements, supplement schedules and logs, daily check-ins, your goals and settings (including training goals), and the app-refresh dates.
 These exist nowhere else unless you export a backup.
 
 ## 3. What happens during a normal refresh from Xcode
@@ -38,7 +38,7 @@ With the iPhone connected (or on the same Wi-Fi) to a Mac that has installed Hea
 Scripts/backup-from-iphone.sh
 ```
 
-It copies HealthTrack's database files into `~/Documents/HealthTrack Backups/<date_time>/` (outside the git project). Close the app first for the cleanest copy. A year of logs is only a few MB.
+It copies HealthTrack's database files into `~/Documents/HealthTrack Backups/<date_time>/` (outside the git project), then opens a scratch copy to prove it isn't damaged and prints how many meals, water entries, gym sessions and so on it holds. A failed check ends with a warning and exit code 2: keep the previous backup and try again with the app closed. Close the app first for the cleanest copy. A year of logs is only a few MB.
 
 ## 7. How to restore
 
@@ -54,6 +54,8 @@ Settings → Data & Backup → **Import JSON backup** (arrives in M15). Import a
 - Letting the app expire is **not** data loss: it stops launching, but the data stays. Refreshing from Xcode brings it back.
 
 ## 9. Safe upgrade procedure
+
+New settings-like data (for example training goals, 2026-11-07) goes inside the JSON-encoded `Goals` in `AppSettings`, whose decoder fills missing keys with defaults. That needs no schema change and is part of every backup. Real new record types still need `SchemaV2`.
 
 For you, before installing a new version:
 

@@ -56,6 +56,7 @@ enum SampleData {
                 3: ([.back, .arms], "Deadlift 3x5 100 kg\nLat pulldown 3x10 50 kg\nBicep curl 3x12 12 kg"),
                 5: ([.legs, .glutes, .core], "Squat 4x6 90 kg\nRomanian deadlift 3x10 60 kg\nPlank 3x1"),
                 6: ([.fullBody], "Treadmill 25 min 4 km\nRowing 10 min 2 km"),
+                7: ([.fullBody], "Run 31 min 5 km"),
             ]
             if let (focus, lines) = plan[weekday], !isToday, Double.random(in: 0...1, using: &rng) < 0.85 {
                 ctx.logGym(focus: focus, exercises: GymLog.parse(lines), at: at(18, 30, spread: 45), calendar: calendar)
@@ -87,6 +88,14 @@ enum SampleData {
         let saved = SavedMeal(name: "Usual breakfast", type: .breakfast, foodLines: breakfasts[0])
         ctx.insert(saved)
         ctx.settings().favoriteFoods = ["oats", "banana", "yogurt", "rice", "dal"]
+        var goals = ctx.settings().goals
+        goals.trainingGoals = [
+            TrainingGoal(target: ParsedExercise(name: "Run", distanceKm: 5), timesPerWeek: 2, createdAt: first),
+            TrainingGoal(target: ParsedExercise(name: "Bench press", sets: 4, reps: 8, weightKg: 60), timesPerWeek: 1, createdAt: first),
+            TrainingGoal(target: ParsedExercise(name: "Run", distanceKm: 10), timesPerWeek: 0, createdAt: first),
+            TrainingGoal(target: ParsedExercise(name: "Squat", sets: 4, reps: 6, weightKg: 90), timesPerWeek: 0, createdAt: first),
+        ]
+        ctx.settings().goals = goals
         try? ctx.save()
     }
 }

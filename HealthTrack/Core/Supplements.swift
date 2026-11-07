@@ -4,6 +4,15 @@ enum SupplementStatus: String, Codable, CaseIterable, Sendable {
     case pending, taken, skipped, missed
 }
 
+/// What the vitamin dropdowns offer ("Other…" covers anything else).
+enum VitaminCatalog {
+    static let names = ["Vitamin D", "Vitamin C", "Vitamin B12", "Vitamin B complex", "Multivitamin", "Magnesium",
+                        "Zinc", "Iron", "Calcium", "Omega-3", "Folic acid", "Vitamin K2", "Creatine", "Probiotic",
+                        "Electrolytes", "Ashwagandha"]
+    static let doses = ["1 tablet", "2 tablets", "1 capsule", "2 capsules", "1 gummy", "1 scoop", "5 ml",
+                        "15 mg", "200 mg", "250 mg", "500 mg", "1000 mg", "1000 IU", "2000 IU", "5000 IU", "60,000 IU"]
+}
+
 enum DayPart: String, Codable, CaseIterable, Sendable {
     case morning, afternoon, evening
 

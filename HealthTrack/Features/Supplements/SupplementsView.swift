@@ -12,15 +12,17 @@ struct SupplementsView: View {
                 Button { editing = s } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         HStack {
-                            Text(s.name).foregroundStyle(.primary).lineLimit(2)
-                            if !s.active { Text("Paused").font(.caption).foregroundStyle(.orange) }
+                            Text(s.name).foregroundStyle(Palette.text).lineLimit(2)
+                            if !s.active { Text("Paused").font(.caption).foregroundStyle(Palette.warn) }
                         }
                         Text([s.dosageText, s.schedules.first.map(Self.describe) ?? "As needed"].filter { !$0.isEmpty }.joined(separator: " · "))
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(Palette.secondary)
                     }
                 }
             }
+            .appRows()
         }
+        .appScreen()
         .overlay {
             if supplements.isEmpty {
                 ContentUnavailableView("No vitamins yet", systemImage: "pills",
@@ -65,10 +67,18 @@ struct SupplementEditor: View {
     var body: some View {
         NavigationStack {
             Form {
+                Group {
                 Section {
-                    TextField("Name, e.g. Vitamin D or Magnesium", text: $name)
-                    TextField("Dose, e.g. 1000 IU", text: $dosage)
-                    TextField("Notes", text: $notes, axis: .vertical)
+                    NameMenu(title: "Vitamin name", groups: [("Common", VitaminCatalog.names)], pick: { name = $0 }) {
+                        DropdownLabel(title: "Name", value: name.isEmpty ? "Choose" : name)
+                    }
+                    .accessibilityLabel("Name")
+                    .accessibilityValue(name.isEmpty ? "Choose" : name)
+                    NameMenu(title: "Dose", groups: [("Common", VitaminCatalog.doses)], pick: { dosage = $0 }) {
+                        DropdownLabel(title: "Dose", value: dosage.isEmpty ? "Optional" : dosage)
+                    }
+                    .accessibilityLabel("Dose")
+                    TextField("Notes (optional)", text: $notes, axis: .vertical)
                     Toggle("Active", isOn: $active)
                 } footer: {
                     if !active { Text("Paused vitamins keep their history but aren't scheduled.") }
@@ -82,22 +92,14 @@ struct SupplementEditor: View {
 
                 if scheduled {
                 Section("Schedule") {
-                    HStack(spacing: 4) {
-                        ForEach(1...7, id: \.self) { d in
-                            let on = weekdays.isEmpty || weekdays.contains(d)
-                            Button(Calendar.current.veryShortWeekdaySymbols[d - 1]) { toggle(d) }
-                                .frame(maxWidth: .infinity, minHeight: 36)
-                                .background(on ? Color.accentColor : Color(.tertiarySystemFill), in: .circle)
-                                .foregroundStyle(on ? Color.white : Color.primary)
-                                .buttonStyle(.plain)
-                                .accessibilityLabel(Calendar.current.weekdaySymbols[d - 1])
-                                .accessibilityAddTraits(on ? .isSelected : [])
-                        }
-                    }
+                    MultiSelectMenu(title: "Days", options: Array(1...7), selection: Binding(
+                        get: { weekdays.isEmpty ? Set(1...7) : weekdays },
+                        // Empty means "every day" in the schedule, so unticking the last day is ignored.
+                        set: { if $0.count == 7 { weekdays = [] } else if !$0.isEmpty { weekdays = $0 } }),
+                                    label: { Calendar.current.shortWeekdaySymbols[$0 - 1] }, emptyText: "No days")
                     Picker("Time of day", selection: $dayPart) {
                         ForEach(DayPart.allCases, id: \.self) { Text($0.rawValue.capitalized) }
                     }
-                    .pickerStyle(.segmented)
                     DatePicker("Starts", selection: $startDate, displayedComponents: .date)
                     Toggle("Ends", isOn: $hasEnd)
                     if hasEnd { DatePicker("Ends on", selection: $endDate, in: startDate..., displayedComponents: .date) }
@@ -118,7 +120,10 @@ struct SupplementEditor: View {
                         Text("To stop taking it but keep your history, turn off Active instead.")
                     }
                 }
+                }
+                .appRows()
             }
+            .appScreen()
             .navigationTitle(supplement == nil ? "Add vitamin" : "Edit vitamin")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -138,13 +143,6 @@ struct SupplementEditor: View {
             .onAppear(perform: load)
             .onChange(of: dayPart) { _, part in if !reminder { reminderTime = part.defaultTime } }
         }
-    }
-
-    /// Empty set = every day. Tapping a day when "every day" is on selects all but that day.
-    private func toggle(_ d: Int) {
-        if weekdays.isEmpty { weekdays = Set(1...7) }
-        if weekdays.contains(d) { weekdays.remove(d) } else { weekdays.insert(d) }
-        if weekdays.count == 7 { weekdays = [] }
     }
 
     private func load() {
@@ -206,8 +204,6 @@ struct VitaminLogSheet: View {
     @Query(sort: \Supplement.name) private var supplements: [Supplement]
     let day: Date
 
-    @State private var name = ""
-    @State private var dose = ""
     @State private var loggedIDs: [UUID] = []
     @State private var tapCount = 0
 
@@ -222,16 +218,17 @@ struct VitaminLogSheet: View {
                             Button { log(s) } label: {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text(s.name).foregroundStyle(.primary)
-                                        if !s.dosageText.isEmpty { Text(s.dosageText).font(.caption).foregroundStyle(.secondary) }
+                                        Text(s.name).foregroundStyle(Palette.text)
+                                        if !s.dosageText.isEmpty { Text(s.dosageText).font(.caption).foregroundStyle(Palette.secondary) }
                                     }
                                     Spacer()
                                     Image(systemName: done ? "checkmark.circle.fill" : "plus.circle")
-                                        .foregroundStyle(done ? Palette.good : Color.accentColor)
+                                        .foregroundStyle(done ? Palette.good : Palette.lime)
                                 }
                             }
                             .accessibilityLabel(done ? "\(s.name), logged" : "Log \(s.name)")
                         }
+                        .appRows()
                     } header: {
                         Text("Tap what you took")
                     } footer: {
@@ -239,16 +236,17 @@ struct VitaminLogSheet: View {
                     }
                 }
                 Section {
-                    TextField("Name, e.g. Vitamin C", text: $name)
-                    TextField("Dose (optional)", text: $dose)
-                    Button("Log it", systemImage: "plus", action: logNew)
-                        .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
-                } header: {
-                    Text("Something else")
+                    NameMenu(title: "Vitamin name", groups: [("Common", VitaminCatalog.names.filter { n in !supplements.contains { $0.name.caseInsensitiveCompare(n) == .orderedSame } })],
+                             pick: logNew) {
+                        Label("Log something else", systemImage: "plus.circle.fill").foregroundStyle(Palette.lime)
+                    }
+                    .accessibilityLabel("Log something else")
+                    .appRows()
                 } footer: {
                     Text("Saved as an as-needed vitamin, so next time it's one tap.")
                 }
             }
+            .appScreen()
             .navigationTitle("Log a vitamin")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -263,16 +261,13 @@ struct VitaminLogSheet: View {
         }
     }
 
-    private func logNew() {
-        let trimmed = name.trimmingCharacters(in: .whitespaces)
-        let existing = supplements.first { $0.name.caseInsensitiveCompare(trimmed) == .orderedSame }
+    private func logNew(_ picked: String) {
+        let existing = supplements.first { $0.name.caseInsensitiveCompare(picked) == .orderedSame }
         let s = existing ?? {
-            let new = Supplement(name: trimmed, dosageText: dose.trimmingCharacters(in: .whitespaces))
+            let new = Supplement(name: picked)
             context.insert(new)
             return new
         }()
         log(s)
-        name = ""
-        dose = ""
     }
 }

@@ -16,3 +16,11 @@ Free Apple signing lasts about 7 days. HealthTrack suggests a refresh on day 6 a
 12. HealthTrack detects the refresh by itself and resets the next suggested refresh date.
 
 If the app has already stopped opening, nothing is lost. Do steps 2–10 and it will open again with your data.
+
+## If the expiry date doesn't move
+
+Xcode reuses the signing profile it already has, even when that profile expires in a few hours, and it can't make a new one if it has been signed out of your Apple Account. This happened on 2026-11-07. To check and fix:
+
+1. **Xcode → Settings → Accounts**: your Apple Account must be listed. If not, sign in again (yourself, in Xcode's window).
+2. After Run, check the expiry in HealthTrack → Settings → App Installation → **Signing expires**. It should be about 7 days away.
+3. If it isn't, quit Xcode, move the old profile out of `~/Library/Developer/Xcode/UserData/Provisioning Profiles/` (keep it somewhere until the new one works), and press Run again. Xcode then asks Apple for a new one.

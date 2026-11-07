@@ -18,32 +18,36 @@ struct ConsistencyDetail: View {
         let record = context.dayRecords(from: day, through: day, health: health.snapshot, goals: goals).first
         let c = record.map { BehaviorScore.components($0.facts, goals: goals) } ?? [:]
         List {
-            Section {
-                HStack {
-                    Spacer()
-                    Ring(value: BehaviorScore.score(c), size: 120, lineWidth: 12)
-                    Spacer()
-                }
-                .listRowBackground(Color.clear)
-            }
-            Section {
-                ForEach(ScoreComponent.allCases, id: \.self) { component in
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack {
-                            Text(component.title)
-                            Spacer()
-                            Text(c[component] == nil ? "No data" : Format.percent(c[component]))
-                                .monospacedDigit().foregroundStyle(.secondary)
-                        }
-                        if let v = c[component] { ProgressView(value: v) }
-                        Text(Self.explain(component, goals)).font(.caption).foregroundStyle(.secondary)
+            Group {
+                Section {
+                    HStack {
+                        Spacer()
+                        Ring(value: BehaviorScore.score(c), size: 120, lineWidth: 12)
+                        Spacer()
                     }
-                    .accessibilityElement(children: .combine)
+                    .listRowBackground(Color.clear)
                 }
-            } footer: {
-                Text("Did I do what I intended? Habits only, never a medical score. Areas with no data are left out instead of counting as zero.")
+                Section {
+                    ForEach(ScoreComponent.allCases, id: \.self) { component in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text(component.title)
+                                Spacer()
+                                Text(c[component] == nil ? "No data" : Format.percent(c[component]))
+                                    .monospacedDigit().foregroundStyle(Palette.secondary)
+                            }
+                            if let v = c[component] { ProgressView(value: v) }
+                            Text(Self.explain(component, goals)).font(.caption).foregroundStyle(Palette.secondary)
+                        }
+                        .accessibilityElement(children: .combine)
+                    }
+                } footer: {
+                    Text("Did I do what I intended? Habits only, never a medical score. Areas with no data are left out instead of counting as zero.")
+                }
             }
+            .appRows()
         }
+        .appScreen()
         .navigationTitle(title("Consistency", day))
     }
 
@@ -70,42 +74,59 @@ struct SleepDetail: View {
         let s = health.snapshot
         let night = s.nights(calendar: .current)[key]
         List {
-            if let n = night {
-                let bed = TimeOfDay(of: n.sleepStart, in: .current)
-                let wake = TimeOfDay(of: n.finalWake, in: .current)
-                Section {
-                    LabeledContent("Asleep", value: Format.duration(n.asleep))
-                    target("Fell asleep", bed, goals.isBedtimeOnTarget(bed), goals.bedtime)
-                    target("Woke", wake, goals.isWakeOnTarget(wake), goals.wakeTime)
-                    LabeledContent("In bed", value: Format.duration(n.inBed))
-                    LabeledContent("Awake", value: Format.duration(n.awake))
-                    LabeledContent("Interruptions", value: "\(n.interruptions)")
+            Group {
+                if let n = night {
+                    let bed = TimeOfDay(of: n.sleepStart, in: .current)
+                    let wake = TimeOfDay(of: n.finalWake, in: .current)
+                    Section {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Hypnogram(night: n).frame(height: 110)
+                            HStack(spacing: 12) {
+                                ForEach([("Awake", Palette.awake), ("REM", Palette.rem), ("Core", Palette.core), ("Deep", Palette.deep)], id: \.0) { name, color in
+                                    HStack(spacing: 4) {
+                                        Circle().fill(color).frame(width: 8, height: 8)
+                                        Text(name).font(.caption).foregroundStyle(Palette.secondary)
+                                    }
+                                }
+                            }
+                            .accessibilityHidden(true)
+                        }
+                        .padding(.vertical, 6)
+                        LabeledContent("Asleep", value: Format.duration(n.asleep))
+                        target("Fell asleep", bed, goals.isBedtimeOnTarget(bed), goals.bedtime)
+                        target("Woke", wake, goals.isWakeOnTarget(wake), goals.wakeTime)
+                        LabeledContent("In bed", value: Format.duration(n.inBed))
+                        LabeledContent("Awake", value: Format.duration(n.awake))
+                        LabeledContent("Interruptions", value: "\(n.interruptions)")
+                    }
+                    Section {
+                        LabeledContent("Core", value: n.core.map(Format.duration) ?? "—")
+                        LabeledContent("Deep", value: n.deep.map(Format.duration) ?? "—")
+                        LabeledContent("REM", value: n.rem.map(Format.duration) ?? "—")
+                    } header: {
+                        Text("Stages")
+                    } footer: {
+                        Text(n.deep == nil ? "Your watch didn't record sleep stages this night."
+                                           : "Stages are estimates from your watch. More or less of a stage isn't automatically better or worse.")
+                    }
+                } else {
+                    ContentUnavailableView("No sleep recorded", systemImage: "bed.double",
+                                           description: Text("Wear your watch to bed. Zepp syncs sleep to Apple Health."))
                 }
                 Section {
-                    LabeledContent("Core", value: n.core.map(Format.duration) ?? "—")
-                    LabeledContent("Deep", value: n.deep.map(Format.duration) ?? "—")
-                    LabeledContent("REM", value: n.rem.map(Format.duration) ?? "—")
+                    LabeledContent("HRV", value: s.hrv[key].map { "\(Int($0.rounded())) ms" } ?? "—")
+                    LabeledContent("Resting heart rate", value: s.restingHR[key].map { "\(Int($0.rounded())) bpm" } ?? "—")
+                    if let line = baselineLine(s.hrv, key: key, name: "HRV", unit: "ms") { Text(line).font(.footnote).foregroundStyle(Palette.secondary) }
+                    if let line = baselineLine(s.restingHR, key: key, name: "Resting heart rate", unit: "bpm") { Text(line).font(.footnote).foregroundStyle(Palette.secondary) }
                 } header: {
-                    Text("Stages")
+                    Text("Recovery")
                 } footer: {
-                    Text(n.deep == nil ? "Your watch didn't record sleep stages this night."
-                                       : "Stages are estimates from your watch. More or less of a stage isn't automatically better or worse.")
+                    Text("Compared with your usual range: the middle of your previous 30 days, plus or minus a typical day-to-day swing. Not a diagnosis.")
                 }
-            } else {
-                ContentUnavailableView("No sleep recorded", systemImage: "bed.double",
-                                       description: Text("Wear your watch to bed. Zepp syncs sleep to Apple Health."))
             }
-            Section {
-                LabeledContent("HRV", value: s.hrv[key].map { "\(Int($0.rounded())) ms" } ?? "—")
-                LabeledContent("Resting heart rate", value: s.restingHR[key].map { "\(Int($0.rounded())) bpm" } ?? "—")
-                if let line = baselineLine(s.hrv, key: key, name: "HRV") { Text(line).font(.footnote).foregroundStyle(.secondary) }
-                if let line = baselineLine(s.restingHR, key: key, name: "Resting heart rate") { Text(line).font(.footnote).foregroundStyle(.secondary) }
-            } header: {
-                Text("Recovery")
-            } footer: {
-                Text("Compared with your own 30-day average. Not a diagnosis.")
-            }
+            .appRows()
         }
+        .appScreen()
         .navigationTitle(title("Sleep", day))
     }
 
@@ -120,13 +141,12 @@ struct SleepDetail: View {
         .accessibilityValue("\(t.formatted()), target \(goal.formatted()), \(ok ? "on target" : "off target")")
     }
 
-    private func baselineLine(_ values: [String: Double], key: String, name: String) -> String? {
-        guard let value = values[key],
-              let start = Calendar.current.date(byAdding: .day, value: -30, to: day) else { return nil }
-        let startKey = DayKey.of(start, calendar: .current)
-        guard let base = values.filter({ $0.key >= startKey && $0.key < key }).map(\.value).mean, base > 0 else { return nil }
-        let pct = Int(((value - base) / base * 100).rounded())
-        return pct == 0 ? "\(name) is at your 30-day average." : "\(name) is \(abs(pct))% \(pct > 0 ? "above" : "below") your 30-day average."
+    private func baselineLine(_ values: [String: Double], key: String, name: String, unit: String) -> String? {
+        guard let value = values[key] else { return nil }
+        guard let range = UsualRange.before(key, in: values, calendar: .current) else {
+            return "Your usual \(name) range appears after \(UsualRange.minDays) days of data."
+        }
+        return range.sentence(name, value: value, unit: unit)
     }
 }
 
@@ -147,23 +167,27 @@ struct WaterDetail: View {
         let target = settingsRows.first?.goals.waterTargetML ?? Goals().waterTargetML
         let total = water.reduce(0) { $0 + $1.amountML }
         List {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(Hydration.progressText(totalML: total, targetML: target))
-                        .font(.largeTitle.bold().monospacedDigit())
-                        .contentTransition(.numericText())
-                    ProgressView(value: min(1, Double(total) / Double(max(target, 1)))).tint(.blue)
+            Group {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(Hydration.progressText(totalML: total, targetML: target))
+                            .font(.system(.largeTitle, weight: .light).monospacedDigit())
+                            .contentTransition(.numericText())
+                        ProgressView(value: min(1, Double(total) / Double(max(target, 1)))).tint(Palette.water)
+                    }
+                    WaterButtons(day: day)
                 }
-                WaterButtons(day: day)
-            }
-            Section("Entries") {
-                if water.isEmpty { Text("Nothing yet.").foregroundStyle(.secondary) }
-                ForEach(water) { entry in
-                    LabeledContent("\(entry.amountML) ml", value: entry.timestamp.formatted(date: .omitted, time: .shortened))
+                Section("Entries") {
+                    if water.isEmpty { Text("Nothing yet.").foregroundStyle(Palette.secondary) }
+                    ForEach(water) { entry in
+                        LabeledContent("\(entry.amountML) ml", value: entry.timestamp.formatted(date: .omitted, time: .shortened))
+                    }
+                    .onDelete { for i in $0 { context.delete(water[i]) } }
                 }
-                .onDelete { for i in $0 { context.delete(water[i]) } }
             }
+            .appRows()
         }
+        .appScreen()
         .navigationTitle(title("Water", day))
     }
 }
@@ -185,24 +209,28 @@ struct ProteinDetail: View {
         let target = settingsRows.first?.goals.proteinTargetGrams ?? Goals().proteinTargetGrams
         let total = entries.reduce(0) { $0 + $1.grams }
         List {
-            Section {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("\(total) / \(target) g").font(.largeTitle.bold().monospacedDigit()).contentTransition(.numericText())
-                    ProgressView(value: min(1, Double(total) / Double(max(target, 1)))).tint(.pink)
+            Group {
+                Section {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(total) / \(target) g").font(.system(.largeTitle, weight: .light).monospacedDigit()).contentTransition(.numericText())
+                        ProgressView(value: min(1, Double(total) / Double(max(target, 1)))).tint(Palette.protein)
+                    }
+                    ProteinButtons(day: day)
+                } footer: {
+                    Text("Your own target, set in Settings → Goals. HealthTrack doesn't recommend an intake.")
                 }
-                ProteinButtons(day: day)
-            } footer: {
-                Text("Your own target, set in Settings → Goals. HealthTrack doesn't recommend an intake.")
-            }
-            Section("Entries") {
-                if entries.isEmpty { Text("Nothing yet.").foregroundStyle(.secondary) }
-                ForEach(entries) { e in
-                    LabeledContent(e.label.isEmpty ? "\(e.grams) g" : "\(e.grams) g · \(e.label)",
-                                   value: e.timestamp.formatted(date: .omitted, time: .shortened))
+                Section("Entries") {
+                    if entries.isEmpty { Text("Nothing yet.").foregroundStyle(Palette.secondary) }
+                    ForEach(entries) { e in
+                        LabeledContent(e.label.isEmpty ? "\(e.grams) g" : "\(e.grams) g · \(e.label)",
+                                       value: e.timestamp.formatted(date: .omitted, time: .shortened))
+                    }
+                    .onDelete { for i in $0 { context.delete(entries[i]) } }
                 }
-                .onDelete { for i in $0 { context.delete(entries[i]) } }
             }
+            .appRows()
         }
+        .appScreen()
         .navigationTitle(title("Protein", day))
     }
 }
@@ -231,45 +259,49 @@ struct SupplementsDetail: View {
         let scheduled = all.filter { !$0.isJournal }
         let extra = all.filter(\.isJournal).sorted { ($0.takenAt ?? $0.createdAt) < ($1.takenAt ?? $1.createdAt) }
         List {
-            if supplements.isEmpty {
-                ContentUnavailableView {
-                    Label("No vitamins yet", systemImage: "pills")
-                } description: {
-                    Text("Add the vitamins and supplements you take, on a schedule or as needed.")
-                } actions: {
-                    Button("Add a vitamin") { adding = true }.buttonStyle(.borderedProminent)
-                }
-            } else {
-                Section {
-                    Button("Log a vitamin…", systemImage: "plus.circle") { logging = true }
-                } footer: {
-                    Text("For anything you take: as-needed vitamins, or an extra dose. Doesn't change your adherence.")
-                }
-                Section {
-                    if scheduled.isEmpty { Text("Nothing scheduled.").foregroundStyle(.secondary) }
-                    ForEach(scheduled) { DoseRow(log: $0, isPast: isPast) }
-                    if scheduled.contains(where: { $0.status == .pending || $0.status == .missed }) {
-                        Button("Mark all taken", systemImage: "checkmark.circle") { context.markAllTaken(onDay: key) }
+            Group {
+                if supplements.isEmpty {
+                    ContentUnavailableView {
+                        Label("No vitamins yet", systemImage: "pills")
+                    } description: {
+                        Text("Add the vitamins and supplements you take, on a schedule or as needed.")
+                    } actions: {
+                        Button("Add a vitamin") { adding = true }.buttonStyle(.borderedProminent)
                     }
-                } header: {
-                    Text("Scheduled")
-                } footer: {
-                    if isPast { Text("Forgot to tick something? You can fix it here for up to five days.") }
-                }
-                if !extra.isEmpty {
-                    Section("Also taken") {
-                        ForEach(extra) { log in
-                            LabeledContent(log.supplement?.name ?? "Vitamin",
-                                           value: (log.takenAt ?? log.createdAt).formatted(date: .omitted, time: .shortened))
+                } else {
+                    Section {
+                        Button("Log a vitamin…", systemImage: "plus.circle") { logging = true }
+                    } footer: {
+                        Text("For anything you take: as-needed vitamins, or an extra dose. Doesn't change your adherence.")
+                    }
+                    Section {
+                        if scheduled.isEmpty { Text("Nothing scheduled.").foregroundStyle(Palette.secondary) }
+                        ForEach(scheduled) { DoseRow(log: $0, isPast: isPast) }
+                        if scheduled.contains(where: { $0.status == .pending || $0.status == .missed }) {
+                            Button("Mark all taken", systemImage: "checkmark.circle") { context.markAllTaken(onDay: key) }
                         }
-                        .onDelete { for i in $0 { context.delete(extra[i]) } }
+                    } header: {
+                        Text("Scheduled")
+                    } footer: {
+                        if isPast { Text("Forgot to tick something? You can fix it here for up to five days.") }
+                    }
+                    if !extra.isEmpty {
+                        Section("Also taken") {
+                            ForEach(extra) { log in
+                                LabeledContent(log.supplement?.name ?? "Vitamin",
+                                               value: (log.takenAt ?? log.createdAt).formatted(date: .omitted, time: .shortened))
+                            }
+                            .onDelete { for i in $0 { context.delete(extra[i]) } }
+                        }
                     }
                 }
+                Section {
+                    NavigationLink("Manage vitamins") { SupplementsView() }
+                }
             }
-            Section {
-                NavigationLink("Manage vitamins") { SupplementsView() }
-            }
+            .appRows()
         }
+        .appScreen()
         .navigationTitle(title("Vitamins", day))
         .sheet(isPresented: $logging) { VitaminLogSheet(day: day) }
         .sheet(isPresented: $adding) { SupplementEditor(supplement: nil) }
@@ -289,28 +321,32 @@ struct ActivityDetail: View {
         let end = Calendar.current.date(byAdding: .day, value: 1, to: day) ?? day
         let todays = s.workouts.filter { $0.start >= day && $0.start < end }
         List {
-            Section("Steps") {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text(s.steps[key].map { $0.formatted() } ?? "—").font(.largeTitle.bold().monospacedDigit())
-                    ProgressView(value: min(1, Double(s.steps[key] ?? 0) / Double(max(goals.stepTarget, 1)))).tint(.green)
-                    Text("Target \(goals.stepTarget.formatted())").font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            Section("Workouts") {
-                if todays.isEmpty { Text("No workouts.").foregroundStyle(.secondary) }
-                ForEach(Array(todays.enumerated()), id: \.offset) { _, w in
-                    LabeledContent(w.activityName) {
-                        Text([Format.duration(w.duration), w.activeEnergyKcal.map { "≈ \(Int($0)) kcal" }].compactMap { $0 }.joined(separator: " · "))
+            Group {
+                Section("Steps") {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(s.steps[key].map { $0.formatted() } ?? "—").font(.system(.largeTitle, weight: .light).monospacedDigit())
+                        ProgressView(value: min(1, Double(s.steps[key] ?? 0) / Double(max(goals.stepTarget, 1)))).tint(Palette.lime)
+                        Text("Target \(goals.stepTarget.formatted())").font(.caption).foregroundStyle(Palette.secondary)
                     }
                 }
-                LabeledContent("This week", value: "\(context.workoutsThisWeek(containing: day, health: s, goals: goals)) / \(goals.workoutsPerWeek)")
+                Section("Workouts") {
+                    if todays.isEmpty { Text("No workouts.").foregroundStyle(Palette.secondary) }
+                    ForEach(Array(todays.enumerated()), id: \.offset) { _, w in
+                        LabeledContent(w.activityName) {
+                            Text([Format.duration(w.duration), w.activeEnergyKcal.map { "≈ \(Int($0)) kcal" }].compactMap { $0 }.joined(separator: " · "))
+                        }
+                    }
+                    LabeledContent("This week", value: "\(context.workoutsThisWeek(containing: day, health: s, goals: goals)) / \(goals.workoutsPerWeek)")
+                }
+                Section {
+                    LabeledContent("Active energy", value: s.activeEnergy[key].map { "≈ \(Int($0)) kcal" } ?? "—")
+                } footer: {
+                    Text("Calories are estimates from your watch, not exact measurements.")
+                }
             }
-            Section {
-                LabeledContent("Active energy", value: s.activeEnergy[key].map { "≈ \(Int($0)) kcal" } ?? "—")
-            } footer: {
-                Text("Calories are estimates from your watch, not exact measurements.")
-            }
+            .appRows()
         }
+        .appScreen()
         .navigationTitle(title("Activity", day))
     }
 }
@@ -321,15 +357,19 @@ struct CheckInDetail: View {
     var body: some View {
         let key = DayKey.of(day, calendar: .current)
         Form {
-            Section {
-                CheckInControls(dayKey: key)
-            } footer: {
-                Text("1 = low, 5 = high. Tap a selected number again to clear it.")
+            Group {
+                Section {
+                    CheckInControls(dayKey: key)
+                } footer: {
+                    Text("1 = low, 5 = high. Tap a selected number again to clear it.")
+                }
+                Section("Notes") {
+                    CheckInNotes(dayKey: key)
+                }
             }
-            Section("Notes") {
-                CheckInNotes(dayKey: key)
-            }
+            .appRows()
         }
+        .appScreen()
         .navigationTitle(title("Check-in", day))
     }
 }

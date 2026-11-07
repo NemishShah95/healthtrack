@@ -91,4 +91,8 @@ enum GymLog {
 enum Protein {
     static let quickAddGrams = [10, 20, 30]
     static let validRangeGrams = 1...300
+    /// The "other amount" dropdown.
+    static let pickerGrams = Array(stride(from: 5, through: 100, by: 5)) + [120, 150]
+    static let commonSources = ["Whey shake", "Eggs", "Chicken", "Paneer", "Greek yogurt", "Dal / lentils",
+                                "Tofu", "Fish", "Milk", "Protein bar"]
 }

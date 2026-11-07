@@ -42,58 +42,76 @@ private struct WeeklyContent: View {
         let r = WeeklyReview(weekStart: week.start, days: records, previousWeek: previousRecords, goals: goals)
 
         List {
-            Section {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Week of \(week.start.formatted(.dateTime.month(.abbreviated).day()))\(offset == 0 && r.days > 0 ? " · so far" : "")".uppercased())
-                        .font(.caption.bold()).foregroundStyle(.secondary)
-                    HStack(spacing: 16) {
-                        Ring(value: r.consistency, size: 84, lineWidth: 10)
-                        VStack(alignment: .leading, spacing: 6) {
-                            if let best = r.bestHabit {
-                                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                    Image(systemName: "star.fill").foregroundStyle(Palette.good).accessibilityHidden(true)
-                                    Text("Best: \(best.title)").fixedSize(horizontal: false, vertical: true)
-                                }
-                            }
-                            if !r.needsAttention.isEmpty {
-                                HStack(alignment: .firstTextBaseline, spacing: 6) {
-                                    Image(systemName: "eye").foregroundStyle(Palette.warn).accessibilityHidden(true)
-                                    Text("Watch: \(r.needsAttention.map(\.title).joined(separator: ", "))").fixedSize(horizontal: false, vertical: true)
-                                }
-                            } else if r.days > 0 {
-                                Label("Nothing needs attention", systemImage: "checkmark").foregroundStyle(.secondary)
-                            }
-                        }
-                        .font(.subheadline)
-                    }
-                }
-                .padding(.vertical, 4)
-            }
-            if r.days == 0 {
-                ContentUnavailableView("Nothing logged this week", systemImage: "calendar",
-                                       description: Text("Your review fills in as you log."))
-            } else {
+            Group {
                 Section {
-                    Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
-                        GridRow {
-                            Stat(label: "Sleep", value: r.averageSleepMinutes.map { Format.duration($0 * 60) } ?? "—")
-                            Stat(label: "Meals on time", value: Format.percent(r.mealsOnTimeRate))
-                        }
-                        GridRow {
-                            Stat(label: "Workouts", value: "\(r.workouts) / \(r.workoutTarget)")
-                            Stat(label: "Water target", value: "\(r.waterTargetDays) / \(r.days) days")
-                        }
-                        GridRow {
-                            Stat(label: "Protein", value: r.averageProtein.map { "\(Int($0.rounded())) g avg" } ?? "—")
-                            Stat(label: "Gym sessions", value: "\(r.gymSessions)")
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Week of \(week.start.formatted(.dateTime.month(.abbreviated).day()))\(offset == 0 && r.days > 0 ? " · so far" : "")".uppercased())
+                            .font(.caption.bold()).foregroundStyle(Palette.secondary)
+                        HStack(spacing: 16) {
+                            Ring(value: r.consistency, size: 84, lineWidth: 10)
+                            VStack(alignment: .leading, spacing: 6) {
+                                if let best = r.bestHabit {
+                                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                        Image(systemName: "star.fill").foregroundStyle(Palette.good).accessibilityHidden(true)
+                                        Text("Best: \(best.title)").fixedSize(horizontal: false, vertical: true)
+                                    }
+                                }
+                                if !r.needsAttention.isEmpty {
+                                    HStack(alignment: .firstTextBaseline, spacing: 6) {
+                                        Image(systemName: "eye").foregroundStyle(Palette.warn).accessibilityHidden(true)
+                                        Text("Watch: \(r.needsAttention.map(\.title).joined(separator: ", "))").fixedSize(horizontal: false, vertical: true)
+                                    }
+                                } else if r.days > 0 {
+                                    Label("Nothing needs attention", systemImage: "checkmark").foregroundStyle(Palette.secondary)
+                                }
+                            }
+                            .font(.subheadline)
+                            .foregroundStyle(Palette.text)
                         }
                     }
                     .padding(.vertical, 4)
-                    NavigationLink("Full breakdown") { WeeklyBreakdown(review: r) }
                 }
+                if r.days == 0 {
+                    ContentUnavailableView("Nothing logged this week", systemImage: "calendar",
+                                           description: Text("Your review fills in as you log."))
+                } else {
+                    Section {
+                        Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 14) {
+                            GridRow {
+                                Stat(label: "Sleep", value: r.averageSleepMinutes.map { Format.duration($0 * 60) } ?? "—")
+                                Stat(label: "Meals on time", value: Format.percent(r.mealsOnTimeRate))
+                            }
+                            GridRow {
+                                Stat(label: "Workouts", value: "\(r.workouts) / \(r.workoutTarget)")
+                                Stat(label: "Water target", value: "\(r.waterTargetDays) / \(r.days) days")
+                            }
+                            GridRow {
+                                Stat(label: "Protein", value: r.averageProtein.map { "\(Int($0.rounded())) g avg" } ?? "—")
+                                Stat(label: "Gym sessions", value: "\(r.gymSessions)")
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        NavigationLink("Full breakdown") { WeeklyBreakdown(review: r) }
+                    }
+                    if let experiment = r.experiment {
+                        Section {
+                            HStack(alignment: .top, spacing: 12) {
+                                Image(systemName: "flask.fill").foregroundStyle(Palette.lime).accessibilityHidden(true)
+                                Text(experiment).foregroundStyle(Palette.text).fixedSize(horizontal: false, vertical: true)
+                            }
+                            .padding(.vertical, 4)
+                        } header: {
+                            Text("Try this next week")
+                        } footer: {
+                            Text("One small experiment, aimed at your weakest habit this week. A suggestion about habits, not medical advice.")
+                        }
+                    }
+                }
+                InsightsSection()
             }
-            InsightsSection()
+            .appRows()
         }
+        .appScreen()
     }
 }
 
@@ -104,41 +122,45 @@ private struct WeeklyBreakdown: View {
     var body: some View {
         let r = review
         List {
-            Section("Sleep") {
-                LabeledContent("Average", value: r.averageSleepMinutes.map { Format.duration($0 * 60) } ?? "—")
-                LabeledContent("Bedtime target", value: "\(r.bedtimeHits) / \(r.nightsWithSleep)")
-                LabeledContent("Wake target", value: "\(r.wakeHits) / \(r.nightsWithSleep)")
-                LabeledContent("HRV trend", value: trend(r.hrvTrend))
-                LabeledContent("Resting HR", value: trend(r.restingHRTrend))
+            Group {
+                Section("Sleep") {
+                    LabeledContent("Average", value: r.averageSleepMinutes.map { Format.duration($0 * 60) } ?? "—")
+                    LabeledContent("Bedtime target", value: "\(r.bedtimeHits) / \(r.nightsWithSleep)")
+                    LabeledContent("Wake target", value: "\(r.wakeHits) / \(r.nightsWithSleep)")
+                    LabeledContent("HRV trend", value: trend(r.hrvTrend))
+                    LabeledContent("Resting HR", value: trend(r.restingHRTrend))
+                }
+                Section("Food") {
+                    LabeledContent("Meals on time", value: Format.percent(r.mealsOnTimeRate))
+                    LabeledContent("Late dinners", value: "\(r.lateDinners)")
+                    LabeledContent("Meals logged", value: "\(r.mealsLogged) / \(r.mealsEvaluated)")
+                }
+                Section("Exercise") {
+                    LabeledContent("Workouts", value: "\(r.workouts) / \(r.workoutTarget)")
+                    LabeledContent("Steps", value: r.averageSteps.map { "\(Int($0).formatted()) avg" } ?? "—")
+                }
+                Section("Gym") {
+                    LabeledContent("Sessions journaled", value: "\(r.gymSessions)")
+                    LabeledContent("Trained", value: r.bodyParts.isEmpty ? "—"
+                        : BodyPart.allCases.compactMap { p in r.bodyParts[p].map { "\(p.title) \($0)" } }.joined(separator: " · "))
+                }
+                Section("Protein") {
+                    LabeledContent("Average", value: r.averageProtein.map { "\(Int($0.rounded())) g" } ?? "—")
+                    LabeledContent("Target reached", value: "\(r.proteinTargetDays) / \(r.proteinDaysLogged) logged days")
+                }
+                Section("Water") {
+                    LabeledContent("Target achieved", value: "\(r.waterTargetDays) / \(r.days)")
+                }
+                Section("Supplements") {
+                    LabeledContent("Adherence", value: Format.percent(r.supplementAdherence))
+                }
+                Section("Energy") {
+                    LabeledContent("Average", value: r.averageEnergy.map { "\(Format.number($0, digits: 1)) / 5" } ?? "—")
+                }
             }
-            Section("Food") {
-                LabeledContent("Meals on time", value: Format.percent(r.mealsOnTimeRate))
-                LabeledContent("Late dinners", value: "\(r.lateDinners)")
-                LabeledContent("Meals logged", value: "\(r.mealsLogged) / \(r.mealsEvaluated)")
-            }
-            Section("Exercise") {
-                LabeledContent("Workouts", value: "\(r.workouts) / \(r.workoutTarget)")
-                LabeledContent("Steps", value: r.averageSteps.map { "\(Int($0).formatted()) avg" } ?? "—")
-            }
-            Section("Gym") {
-                LabeledContent("Sessions journaled", value: "\(r.gymSessions)")
-                LabeledContent("Trained", value: r.bodyParts.isEmpty ? "—"
-                    : BodyPart.allCases.compactMap { p in r.bodyParts[p].map { "\(p.title) \($0)" } }.joined(separator: " · "))
-            }
-            Section("Protein") {
-                LabeledContent("Average", value: r.averageProtein.map { "\(Int($0.rounded())) g" } ?? "—")
-                LabeledContent("Target reached", value: "\(r.proteinTargetDays) / \(r.proteinDaysLogged) logged days")
-            }
-            Section("Water") {
-                LabeledContent("Target achieved", value: "\(r.waterTargetDays) / \(r.days)")
-            }
-            Section("Supplements") {
-                LabeledContent("Adherence", value: Format.percent(r.supplementAdherence))
-            }
-            Section("Energy") {
-                LabeledContent("Average", value: r.averageEnergy.map { "\(Format.number($0, digits: 1)) / 5" } ?? "—")
-            }
+            .appRows()
         }
+        .appScreen()
         .navigationTitle("Week of \(r.weekStart.formatted(.dateTime.month(.abbreviated).day()))")
     }
 
@@ -162,7 +184,7 @@ private struct InsightsSection: View {
         Section {
             if insights.isEmpty {
                 Text("Observations appear once there's enough data, usually after a few weeks of logging.")
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondary)
             }
             ForEach(insights, id: \.text) { Text($0.text) }
         } header: {

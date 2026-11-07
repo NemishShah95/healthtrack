@@ -62,11 +62,11 @@ struct RefreshBanner: View {
         case .dueSoon(let date):
             banner("App refresh due soon",
                    "Reconnect to your personal Mac and run HealthTrack from Xcode before \(date.formatted(.dateTime.weekday(.wide).day().month())).",
-                   tint: .orange)
+                   tint: Palette.warn)
         case .dueToday:
             banner("App refresh recommended today",
                    "Connect your iPhone to your personal Mac and press Run in Xcode.",
-                   tint: .red)
+                   tint: Palette.bad)
         }
     }
 
@@ -76,13 +76,13 @@ struct RefreshBanner: View {
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 Label(title, systemImage: "arrow.triangle.2.circlepath").font(.headline).foregroundStyle(tint)
-                Text(message).font(.subheadline)
+                Text(message).font(.subheadline).foregroundStyle(Palette.text)
                 Text("Your data stays intact when you refresh through Xcode without deleting the app. For extra safety, export a backup first.")
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Palette.secondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding()
-            .background(tint.opacity(0.12), in: .rect(cornerRadius: 16))
+            .background(tint.opacity(0.14), in: .rect(cornerRadius: 20))
         }
         .buttonStyle(.plain)
     }
@@ -96,33 +96,37 @@ struct AppInstallationView: View {
     var body: some View {
         let settings = settingsRows.first
         Form {
-            Section("Status") {
-                LabeledContent("Installed", value: settings?.installationDate?.formatted(date: .abbreviated, time: .omitted) ?? "—")
-                LabeledContent("Last refresh", value: settings?.lastProvisioningRefreshDate?.formatted(date: .abbreviated, time: .shortened) ?? "—")
-                LabeledContent("Suggested next refresh",
-                               value: settings.flatMap { ReinstallTracker.nextRefresh($0) }?.formatted(date: .abbreviated, time: .omitted) ?? "Not needed in the simulator")
-                if let expiry = ReinstallTracker.profileExpiration {
-                    LabeledContent("Signing expires", value: expiry.formatted(date: .abbreviated, time: .shortened))
+            Group {
+                Section("Status") {
+                    LabeledContent("Installed", value: settings?.installationDate?.formatted(date: .abbreviated, time: .omitted) ?? "—")
+                    LabeledContent("Last refresh", value: settings?.lastProvisioningRefreshDate?.formatted(date: .abbreviated, time: .shortened) ?? "—")
+                    LabeledContent("Suggested next refresh",
+                                   value: settings.flatMap { ReinstallTracker.nextRefresh($0) }?.formatted(date: .abbreviated, time: .omitted) ?? "Not needed in the simulator")
+                    if let expiry = ReinstallTracker.profileExpiration {
+                        LabeledContent("Signing expires", value: expiry.formatted(date: .abbreviated, time: .shortened))
+                    }
+                    if let settings {
+                        Toggle("Remind me the day it's due", isOn: Binding(
+                            get: { settings.refreshReminderEnabled },
+                            set: { settings.refreshReminderEnabled = $0 }))
+                    }
                 }
-                if let settings {
-                    Toggle("Remind me the day it's due", isOn: Binding(
-                        get: { settings.refreshReminderEnabled },
-                        set: { settings.refreshReminderEnabled = $0 }))
+                Section {
+                    NavigationLink("Export data first") { DataBackupView() }
+                } header: {
+                    Text("Backup before reinstall")
+                } footer: {
+                    Text("Refreshing through Xcode keeps your data. A backup protects you if something goes wrong.")
+                }
+                Section("How to refresh HealthTrack") {
+                    ForEach(Array(Self.steps.enumerated()), id: \.offset) { i, step in
+                        Label { Text(step) } icon: { Text("\(i + 1).").monospacedDigit() }
+                    }
                 }
             }
-            Section {
-                NavigationLink("Export data first") { DataBackupView() }
-            } header: {
-                Text("Backup before reinstall")
-            } footer: {
-                Text("Refreshing through Xcode keeps your data. A backup protects you if something goes wrong.")
-            }
-            Section("How to refresh HealthTrack") {
-                ForEach(Array(Self.steps.enumerated()), id: \.offset) { i, step in
-                    Label { Text(step) } icon: { Text("\(i + 1).").monospacedDigit() }
-                }
-            }
+            .appRows()
         }
+        .appScreen()
         .navigationTitle("App Installation")
     }
 

@@ -17,24 +17,6 @@ enum Format {
     }
 }
 
-extension Color {
-    /// Different shades for light and dark mode.
-    static func adaptive(light: UIColor, dark: UIColor) -> Color {
-        Color(UIColor { $0.userInterfaceStyle == .dark ? dark : light })
-    }
-}
-
-/// Category and status colours. Light-mode shades are deepened where the system colour
-/// is too pale on white for text or icons (WCAG contrast); dark mode keeps the system colours.
-enum Palette {
-    static let good = Color.adaptive(light: UIColor(red: 0.118, green: 0.498, blue: 0.275, alpha: 1), dark: .systemGreen)
-    static let warn = Color.adaptive(light: UIColor(red: 0.761, green: 0.369, blue: 0, alpha: 1), dark: .systemOrange)
-    static let bad = Color.adaptive(light: UIColor(red: 0.78, green: 0.11, blue: 0.11, alpha: 1), dark: .systemRed)
-    static let meals = warn
-    static let steps = good
-    static let checkIn = Color.adaptive(light: UIColor(red: 0.055, green: 0.486, blue: 0.549, alpha: 1), dark: .systemTeal)
-}
-
 extension Calendar {
     /// A timestamp on `day`: now if it's today, otherwise the same clock time on that day.
     func timestamp(on day: Date, now: Date = .now) -> Date {
@@ -45,12 +27,13 @@ extension Calendar {
 // MARK: - Minimal building blocks
 
 /// A summary tile: one label, one value, an optional one-line detail and at most one quick action.
-/// Tapping anywhere else opens the full page.
+/// Tapping anywhere else opens the full page. The tile is one button whose label starts with `title`.
 struct Tile<Value: View, Accessory: View>: View {
     let title: String
     let systemImage: String
     let tint: Color
     var detail: String?
+    var minHeight: CGFloat = 132
     let open: () -> Void
     @ViewBuilder var value: Value
     @ViewBuilder var accessory: Accessory
@@ -58,89 +41,97 @@ struct Tile<Value: View, Accessory: View>: View {
     var body: some View {
         ZStack(alignment: .bottomTrailing) {
             Button(action: open) {
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack(spacing: 6) {
-                        Image(systemName: systemImage).foregroundStyle(tint)
-                        Text(title)
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack {
+                        Text(title).font(.subheadline).foregroundStyle(Palette.secondary)
+                        Spacer(minLength: 4)
+                        Image(systemName: systemImage).font(.subheadline).foregroundStyle(tint)
                     }
-                    .font(.subheadline.weight(.medium))
                     value
-                        .font(.title3.bold())
+                        .font(.system(.title, weight: .light))
+                        .foregroundStyle(Palette.text)
                         .monospacedDigit()
                         .lineLimit(1)
-                        .minimumScaleFactor(0.7)
+                        .minimumScaleFactor(0.6)
                     Spacer(minLength: 0)
                     HStack(alignment: .bottom, spacing: 4) {
                         if let detail {
-                            Text(detail).font(.caption).foregroundStyle(.secondary).lineLimit(2)
+                            Text(detail).font(.caption).foregroundStyle(Palette.secondary).lineLimit(2)
                         }
                         Spacer(minLength: 0)
                         accessory.hidden()   // reserves room for the real action drawn on top
                     }
                 }
-                .padding(14)
-                .frame(maxWidth: .infinity, minHeight: 116, alignment: .topLeading)
-                .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 20))
-                .contentShape(.rect(cornerRadius: 20))
+                .padding(16)
+                .frame(maxWidth: .infinity, minHeight: minHeight, alignment: .topLeading)
+                .card()
             }
             .buttonStyle(.plain)
             .accessibilityHint("Opens \(title.lowercased()) details")
-            accessory.padding(14)
+            accessory.padding(12)
         }
     }
 }
 
-/// What a tile shows before there's anything to show. Words, not a dash: clearer, and a thin dash
-/// reads as low contrast.
+/// What a tile shows before there's anything to show. Words, not a dash.
 struct Placeholder: View {
     let text: String
     init(_ text: String) { self.text = text }
 
     var body: some View {
-        Text(text).foregroundStyle(.secondary)
+        Text(text).foregroundStyle(Palette.secondary)
     }
 }
 
-/// The one quick action a tile may carry.
+/// The one quick action a tile may carry: a lime capsule with dark text.
 struct PillButton: View {
     let title: String
-    let tint: Color
+    var tint: Color = Palette.lime
     var accessibilityLabel: String?
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Text(title).foregroundStyle(.black)
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.black)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(tint, in: .capsule)
         }
-        .font(.caption.weight(.semibold))
-        .buttonStyle(.borderedProminent)
-        .buttonBorderShape(.capsule)
-        .controlSize(.small)
-        .tint(tint)
-        .frame(minHeight: 44)          // full-size tap target around a small-looking pill
+        .buttonStyle(.plain)
+        .frame(minWidth: 44, minHeight: 44)          // full-size tap target around a small-looking pill
         .contentShape(.rect)
         .accessibilityLabel(accessibilityLabel ?? title)
     }
 }
 
+/// Progress ring with a lime gradient arc and a light percentage in the middle.
 struct Ring: View {
     let value: Double?
     var size: CGFloat = 64
     var lineWidth: CGFloat = 8
+    var label: String?
 
     var body: some View {
         ZStack {
-            Circle().stroke(Color(.tertiarySystemFill), lineWidth: lineWidth)
+            Circle().stroke(Palette.track, lineWidth: lineWidth)
             Circle()
-                .trim(from: 0, to: value ?? 0)
-                .stroke(Color.accentColor, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .trim(from: 0, to: max(0.001, value ?? 0))
+                .stroke(AngularGradient(colors: [Palette.limeDeep, Palette.lime, Palette.lime], center: .center,
+                                        startAngle: .degrees(0), endAngle: .degrees(360 * max(0.01, value ?? 0))),
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
                 .rotationEffect(.degrees(-90))
-            Text(Format.percent(value))
-                .font(size > 80 ? .title.bold() : .subheadline.bold())
-                .monospacedDigit()
-                .lineLimit(1)
-                .minimumScaleFactor(0.4)
-                .padding(lineWidth)
+                .opacity(value == nil ? 0 : 1)
+            VStack(spacing: 0) {
+                Text(label ?? Format.percent(value))
+                    .font(.system(size: size * 0.24, weight: .light))
+                    .foregroundStyle(Palette.text)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
+            }
+            .padding(lineWidth * 1.5)
         }
         .frame(width: size, height: size)
         .animation(.default, value: value)
@@ -153,8 +144,9 @@ struct Stat: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Text(label).font(.caption).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            Text(value).font(.body.monospacedDigit().weight(.semibold)).fixedSize(horizontal: false, vertical: true)
+            Text(label).font(.caption).foregroundStyle(Palette.secondary).fixedSize(horizontal: false, vertical: true)
+            Text(value).font(.system(.title3, weight: .light).monospacedDigit()).foregroundStyle(Palette.text)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .combine)
@@ -222,72 +214,118 @@ extension Binding where Value == TimeOfDay {
 
 // MARK: - Logging controls (work for any day)
 
-/// One-tap amounts plus a custom entry. An accidental double-tap is ignored by the log action.
-struct QuickAddButtons: View {
-    let amounts: [Int]
-    let unit: String
-    /// Spoken unit, e.g. "millilitres".
-    let noun: String
+/// One-tap amount buttons. An accidental double-tap is ignored by the log action.
+private struct AmountButton: View {
+    let title: String
+    let label: String
     let tint: Color
-    let range: ClosedRange<Int>
-    var asksForLabel = false
-    let log: (Int, String) -> Bool
-
-    @State private var showingCustom = false
-    @State private var customAmount = ""
-    @State private var customLabel = ""
-    @State private var tapCount = 0
+    let action: () -> Void
 
     var body: some View {
-        HStack(spacing: 8) {
-            ForEach(amounts, id: \.self) { n in
-                Button(unit == "ml" ? "+\(n)" : "+\(n) \(unit)") { fire(n, "") }
-                    .accessibilityLabel("Add \(n) \(noun)")
-            }
-            Button("Custom", systemImage: "plus") { showingCustom = true }
-                .labelStyle(.iconOnly)
-                .accessibilityLabel("Add a custom amount")
-        }
-        .buttonStyle(.bordered)
-        .tint(tint)
-        .sensoryFeedback(.increase, trigger: tapCount)
-        .alert("Add amount", isPresented: $showingCustom) {
-            TextField(unit == "ml" ? "Millilitres" : "Grams", text: $customAmount).keyboardType(.numberPad)
-            if asksForLabel { TextField("Source (optional)", text: $customLabel) }
-            Button("Add") { if let n = Int(customAmount) { fire(n, customLabel) }; customAmount = ""; customLabel = "" }
-            Button("Cancel", role: .cancel) { customAmount = ""; customLabel = "" }
-        } message: {
-            Text("Between \(range.lowerBound) and \(range.upperBound) \(unit).")
-        }
-    }
-
-    private func fire(_ n: Int, _ label: String) {
-        if log(n, label) { tapCount += 1 }
+        Button(title, action: action)
+            .buttonStyle(.bordered)
+            .tint(tint)
+            .accessibilityLabel(label)
     }
 }
 
-/// +250 / +500 / +750 / custom, logged onto `day`.
+/// +250 / +500 / +750, plus a dropdown of other amounts, logged onto `day`.
 struct WaterButtons: View {
     @Environment(\.modelContext) private var context
     let day: Date
+    @State private var logged = 0
 
     var body: some View {
-        QuickAddButtons(amounts: Hydration.quickAddML, unit: "ml", noun: "millilitres", tint: .blue, range: Hydration.validRangeML) { ml, _ in
-            context.logWater(ml, at: Calendar.current.timestamp(on: day)) != nil
+        HStack(spacing: 8) {
+            ForEach(Hydration.quickAddML, id: \.self) { ml in
+                AmountButton(title: "+\(ml)", label: "Add \(ml) millilitres", tint: Palette.water) { log(ml) }
+            }
+            Menu {
+                ForEach(Hydration.otherAmountsML, id: \.self) { ml in
+                    Button("\(ml) ml") { log(ml) }
+                }
+            } label: {
+                Image(systemName: "chevron.down.circle").font(.title3).foregroundStyle(Palette.water)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .accessibilityLabel("Other amount")
         }
+        .sensoryFeedback(.increase, trigger: logged)
+    }
+
+    private func log(_ ml: Int) {
+        if context.logWater(ml, at: Calendar.current.timestamp(on: day)) != nil { logged += 1 }
     }
 }
 
-/// +10 / +20 / +30 g / custom (with an optional source), logged onto `day`.
+/// +10 / +20 / +30 g, plus "Other…" for any amount with an optional source, logged onto `day`.
 struct ProteinButtons: View {
     @Environment(\.modelContext) private var context
     let day: Date
+    @State private var logged = 0
+    @State private var adding = false
 
     var body: some View {
-        QuickAddButtons(amounts: Protein.quickAddGrams, unit: "g", noun: "grams of protein", tint: .pink,
-                        range: Protein.validRangeGrams, asksForLabel: true) { g, label in
-            context.logProtein(g, label: label, at: Calendar.current.timestamp(on: day)) != nil
+        HStack(spacing: 8) {
+            ForEach(Protein.quickAddGrams, id: \.self) { g in
+                AmountButton(title: "+\(g) g", label: "Add \(g) grams of protein", tint: Palette.protein) {
+                    if context.logProtein(g, at: Calendar.current.timestamp(on: day)) != nil { logged += 1 }
+                }
+            }
+            Button { adding = true } label: {
+                Image(systemName: "chevron.down.circle").font(.title3).foregroundStyle(Palette.protein)
+                    .frame(minWidth: 44, minHeight: 44)
+            }
+            .accessibilityLabel("Other amount")
         }
+        .sensoryFeedback(.increase, trigger: logged)
+        .sheet(isPresented: $adding) { ProteinAddSheet(day: day).presentationDetents([.medium]) }
+    }
+}
+
+/// Any amount of protein and where it came from, both picked from dropdowns.
+struct ProteinAddSheet: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    let day: Date
+    @State private var grams = 25
+    @State private var source = ""
+    @State private var recent: [String] = []
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Group {
+                    Picker("Amount", selection: $grams) {
+                        ForEach(Protein.pickerGrams, id: \.self) { Text("\($0) g").tag($0) }
+                    }
+                    Picker("Source", selection: $source) {
+                        Text("Not specified").tag("")
+                        ForEach(sources, id: \.self) { Text($0).tag($0) }
+                    }
+                }
+                .appRows()
+            }
+            .appScreen()
+            .navigationTitle("Add protein")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        context.logProtein(grams, label: source, at: Calendar.current.timestamp(on: day))
+                        dismiss()
+                    }
+                    .bold()
+                }
+            }
+            .onAppear { recent = context.recentProteinSources() }
+        }
+    }
+
+    private var sources: [String] {
+        var seen = Set<String>()
+        return (recent + Protein.commonSources).filter { seen.insert($0.lowercased()).inserted }
     }
 }
 
@@ -313,7 +351,7 @@ struct CheckInControls: View {
 
     private func row(_ title: String, value: Int?, set: @escaping (DailyCheckIn, Int?) -> Void) -> some View {
         HStack {
-            Text(title).frame(width: 64, alignment: .leading)
+            Text(title).foregroundStyle(Palette.text).frame(width: 64, alignment: .leading)
             Spacer(minLength: 0)
             ForEach(1...5, id: \.self) { n in
                 Button {
@@ -324,8 +362,8 @@ struct CheckInControls: View {
                     Text("\(n)")
                         .font(.body.monospacedDigit())
                         .frame(minWidth: 36, minHeight: 36)
-                        .background(value == n ? Color.accentColor : Color(.tertiarySystemFill), in: .circle)
-                        .foregroundStyle(value == n ? Color.white : Color.primary)
+                        .background(value == n ? Palette.lime : Palette.track, in: .circle)
+                        .foregroundStyle(value == n ? Color.black : Palette.text)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("\(title) \(n) of 5")
@@ -385,7 +423,7 @@ struct DoseRow: View {
                 Text(log.supplement?.name ?? "Supplement").lineLimit(2)
                 Text([log.supplement?.dosageText, log.scheduledMinutes.map { TimeOfDay(0, $0).formatted() }]
                     .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
-                    .font(.caption).foregroundStyle(.secondary)
+                    .font(.caption).foregroundStyle(Palette.secondary)
             }
             Spacer()
             Menu {

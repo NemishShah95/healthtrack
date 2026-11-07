@@ -45,6 +45,8 @@ struct WeeklyReview: Equatable, Sendable {
     var bodyParts: [BodyPart: Int]
     var bestHabit: ScoreComponent?
     var needsAttention: [ScoreComponent]
+    /// One small, habit-level thing to try next week, aimed at the weakest habit. nil for an empty week.
+    var experiment: String?
 
     /// The week (per the calendar's first weekday) containing `date`.
     static func week(containing date: Date, calendar: Calendar) -> DateInterval {
@@ -94,5 +96,19 @@ struct WeeklyReview: Equatable, Sendable {
             .filter { $0.2 < Self.attentionThreshold }
             .prefix(2)
             .map(\.1)
+        experiment = records.isEmpty ? nil : Self.experiment(for: needsAttention.first, goals: goals)
+    }
+
+    /// Habits only, never health advice; checked against `Insights.bannedPhrases` by tests. Idea borrowed from Helios (MIT).
+    static func experiment(for habit: ScoreComponent?, goals: Goals) -> String {
+        switch habit {
+        case .sleep: "Try the same bedtime, \(goals.bedtime.formatted()) ± \(goals.sleepToleranceMinutes) min, every night next week, then compare this review."
+        case .meals: "Try meal reminders next week (Settings → Reminders) and see how many meals land in their window."
+        case .exercise: "Pick \(goals.workoutsPerWeek) fixed workout days for next week and log each one."
+        case .hydration: "Try logging a glass of water with every meal next week."
+        case .supplements: "Try taking your vitamins with the same meal every day next week."
+        case .movement: "Try one 10-minute walk every day next week."
+        case nil: "Keep next week's routine the same. A steady week makes the next review easier to read."
+        }
     }
 }

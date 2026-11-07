@@ -6,7 +6,8 @@
 | --- | --- | --- |
 | Logic, database, mock Health | `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer swift test` | Xcode installed (no simulator) |
 | App unit + persistence tests | `xcodebuild test -scheme HealthTrack -destination 'platform=iOS Simulator,name=iPhone 17'` | Xcode + iOS Simulator |
-| UI tests | same, `HealthTrackUITests` target (add `-parallel-testing-enabled NO` if clones fail): every tab empty and with 90 days of data, one-tap water, protein + gym logging from Today, vitamins from an empty app (add, mark taken, journal an extra dose), swipe back through 5 days | Xcode + iOS Simulator |
+| UI tests | same, `HealthTrackUITests` target (add `-parallel-testing-enabled NO` if clones fail): every tab empty and with 90 days of data, one-tap water, protein + gym logging from Today through the dropdowns, a training goal ticked off by a logged session, vitamins from an empty app (pick from the dropdown, mark taken, journal an extra dose), swipe back through the week, accessibility audit | Xcode + iOS Simulator |
+| CI | `.github/workflows/tests.yml` runs `swift test` on every push and pull request | GitHub Actions, macOS runner |
 
 All tests use Swift Testing. Core tests pin the calendar to Europe/London (which has DST) or another named zone, so results don't depend on the machine.
 
@@ -38,6 +39,13 @@ All tests use Swift Testing. Core tests pin the calendar to Europe/London (which
 | Switching a vitamin to "as needed" keeps history, drops pending doses | ✅ | `VitaminJournalTests` |
 | SchemaV1 unchanged (freeze snapshot) | ✅ | `schemaV1IsFrozen` |
 | Weekly gym/protein summary | ✅ | `ScoreAndReviewTests` |
+| Usual range: 7-day minimum, robust to an odd night, 3% floor, excludes the day itself | ✅ | `TrainingAndBaselineTests` |
+| Watch sync check: stale only after a day with nothing; message | ✅ | `TrainingAndBaselineTests` |
+| Weekly experiment: weakest habit, none for an empty week, no causal words | ✅ | `TrainingAndBaselineTests` |
+| Training goals: weakest-field progress, name matching, weekly days/streaks, milestones, stored in Goals, old goals decode | ✅ | `TrainingAndBaselineTests` |
+| Exercise catalogue: kinds, ordering by body part, old values stay pickable | ✅ | `TrainingAndBaselineTests` |
+| Recent exercises, training log, save/replace/delete training goals | ✅ | `GymAndProteinTests` |
+| Taking a vitamin (Siri): ticks the open dose first, then journals, double log ignored | ✅ | `VitaminJournalTests` |
 | Backups without gym/protein (older format) still decode | ✅ | `ReinstallAndExportTests` |
 | Reinstall reminder dates and warning states | ✅ | `ReinstallAndExportTests` |
 | Export serialisation (JSON round trip, CSV parses) | ✅ | `ReinstallAndExportTests` |
@@ -61,13 +69,15 @@ No data · one day · 7 days · 30 days · 90 days · partial permissions · den
 - "Contrast nearly passed": Apple's own secondary-label grey, the same as in Apple's apps.
 - Contrast on anything under the translucent tab bar: the audit measures through the blur.
 - Contrast findings with no element attached: unattributable system chrome (logged, not failed).
+- Contrast findings that **pass when measured**: the test crops the element from a screenshot and computes the WCAG ratio between its lightest and darkest pixels. At 4.5:1 or more the finding is a false positive. On the see-through gradient the audit flags list section headers whatever their colour (measured 15–21:1 on 2026-11-07).
+- "Potentially inaccessible text" with no element: the glass tab bar shows a blurred copy of the rows behind it. A dump of the Settings tree showed every visible label in the accessibility tree.
 - The Dynamic Type sub-check: it flags plain system list rows. Large text is checked visually (accessibility-large on iPhone 17e).
 
 ## Simulator QA checklist (M16)
 
 - [x] Smallest available iPhone (17e) and largest (18 Pro Max)
-- [x] Light and Dark Mode
-- [x] Dynamic Type at accessibility-large (two truncations fixed)
+- [x] Light and Dark Mode (dark-only since the 2026-11-07 redesign)
+- [x] Dynamic Type at accessibility-large (two truncations fixed; redesign rechecked on iPhone 17e, single-column bento)
 - [x] Empty states on every tab (brand-new install, screenshot tour `TEST_RUNNER_SCREENSHOTS=empty`)
 - [ ] Long text: food names, notes, supplement names
 - [ ] Many meal entries, many supplements

@@ -209,7 +209,17 @@ import Testing
         let last = try #require(ctx.lastGymSession(before: "2026-10-28"))
         let thursday = ctx.duplicate(last, at: date("2026-10-29 18:00", cal), calendar: cal)
         #expect(thursday.day == "2026-10-29" && thursday.focus == [.chest, .arms])
-        #expect(ctx.recentExerciseLines() == ["Bench press 3x8 65 kg"])
+        #expect(ctx.recentExercises() == [ParsedExercise(name: "Bench press", sets: 3, reps: 8, weightKg: 65)])
+        #expect(ctx.trainingLog().count == 2)
+
+        let goal = TrainingGoal(target: ParsedExercise(name: "Bench press", sets: 3, reps: 8), timesPerWeek: 2)
+        ctx.saveTrainingGoal(goal)
+        var edited = goal
+        edited.timesPerWeek = 3
+        ctx.saveTrainingGoal(edited)                                    // same id: replaced, not added
+        #expect(ctx.settings().goals.trainingGoals == [edited])
+        ctx.deleteTrainingGoal(id: goal.id)
+        #expect(ctx.settings().goals.trainingGoals.isEmpty)
         #expect(ctx.gymSessions(from: "2026-10-26", through: "2026-10-31").count == 2)
 
         ctx.delete(monday)
@@ -283,6 +293,21 @@ import Testing
         ctx.syncSupplementLogs(today: now, days: 3, calendar: cal)
         #expect(iron.schedules.isEmpty)
         #expect(iron.logs.map(\.status).sorted { $0.rawValue < $1.rawValue } == [.missed, .missed, .missed])
+    }
+
+    @Test func takingAVitaminTicksTheOpenDoseBeforeJournaling() throws {
+        let ctx = ModelContext(try Persistence.makeContainer(inMemory: true))
+        let vitaminD = Supplement(name: "Vitamin D")
+        ctx.insert(vitaminD)
+        let daily = SupplementSchedule(startDate: date("2026-10-20", cal))
+        ctx.insert(daily)
+        daily.supplement = vitaminD
+        ctx.syncSupplementLogs(today: now, days: 0, calendar: cal)
+        #expect(ctx.takeVitamin(vitaminD, at: now, now: now, calendar: cal))           // ticks today's scheduled dose
+        #expect(vitaminD.logs.map(\.status) == [.taken] && !vitaminD.logs[0].isJournal)
+        #expect(ctx.takeVitamin(vitaminD, at: now, now: now + 5, calendar: cal))       // nothing open: journaled as extra
+        #expect(vitaminD.logs.filter(\.isJournal).count == 1)
+        #expect(!ctx.takeVitamin(vitaminD, at: now, now: now + 5.5, calendar: cal))    // double log ignored
     }
 
     @Test func aJournaledVitaminStartsTracking() throws {

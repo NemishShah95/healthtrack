@@ -12,9 +12,9 @@ struct OnboardingView: View {
             VStack(alignment: .leading, spacing: 24) {
                 Image(systemName: "heart.text.square.fill")
                     .font(.system(size: 64))
-                    .foregroundStyle(.pink)
+                    .foregroundStyle(Palette.lime)
                     .accessibilityHidden(true)
-                Text("Welcome to HealthTrack").font(.largeTitle.bold())
+                Text("Welcome to HealthTrack").font(.system(.largeTitle, weight: .light)).foregroundStyle(Palette.text)
                 Label("Reads your sleep, HRV, resting heart rate, steps and workouts from Apple Health. Your Amazfit data arrives there through Zepp.",
                       systemImage: "heart")
                 Label("You log meals, water, supplements and a quick check-in here. It takes under 30 seconds a day.",
@@ -22,7 +22,7 @@ struct OnboardingView: View {
                 Label("Everything stays on this iPhone. No account, no internet, no tracking.", systemImage: "lock")
                 Text("On the next screen Apple asks which categories to share. Turn them all on for the full picture. You can change this later in the Health app → your profile → Apps → HealthTrack.")
                     .font(.footnote)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Palette.secondary)
             }
             .padding(24)
         }
@@ -34,15 +34,17 @@ struct OnboardingView: View {
                         finish()
                     }
                 } label: {
-                    Text("Connect Apple Health").frame(maxWidth: .infinity)
+                    Text("Connect Apple Health").font(.headline).foregroundStyle(.black)
+                        .frame(maxWidth: .infinity, minHeight: 50)
+                        .background(Palette.lime, in: .capsule)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                Button("Not now", action: finish)
+                .buttonStyle(.plain)
+                Button("Not now", action: finish).foregroundStyle(Palette.lime).frame(minHeight: 44)
             }
             .padding()
-            .background(.bar)
         }
+        .foregroundStyle(Palette.text)
+        .background(AppBackground())
         .interactiveDismissDisabled()
     }
 

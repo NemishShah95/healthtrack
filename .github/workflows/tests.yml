@@ -1,0 +1,28 @@
+# Runs the logic and database tests (`swift test`) on every push and pull request.
+# Idea borrowed from Helios (MIT). Simulator UI tests stay local: they need ~10 GB of runtime.
+# Private repo: macOS minutes count 10x against the free 2,000/month, about 3 minutes per run.
+name: Tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  swift-test:
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Show toolchain
+        run: xcodebuild -version && swift --version
+      - name: Logic and database tests
+        run: swift test

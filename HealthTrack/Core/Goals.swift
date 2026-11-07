@@ -12,6 +12,8 @@ struct Goals: Codable, Equatable, Sendable {
     var mealWindows = MealWindow.defaults
     /// A placeholder until you set your own; HealthTrack never recommends an intake.
     var proteinTargetGrams = 100
+    /// Training tab goals ("Run 5 km, 3× a week"). Kept here so they need no database change and are in every backup.
+    var trainingGoals: [TrainingGoal] = []
 
     func isBedtimeOnTarget(_ t: TimeOfDay) -> Bool { abs(bedtime.signedMinutes(to: t)) <= sleepToleranceMinutes }
     func isWakeOnTarget(_ t: TimeOfDay) -> Bool { abs(wakeTime.signedMinutes(to: t)) <= sleepToleranceMinutes }
@@ -31,6 +33,7 @@ extension Goals {
         workoutsPerWeek = try c.decodeIfPresent(Int.self, forKey: .workoutsPerWeek) ?? d.workoutsPerWeek
         mealWindows = try c.decodeIfPresent([MealType: MealWindow].self, forKey: .mealWindows) ?? d.mealWindows
         proteinTargetGrams = try c.decodeIfPresent(Int.self, forKey: .proteinTargetGrams) ?? d.proteinTargetGrams
+        trainingGoals = (try? c.decodeIfPresent([TrainingGoal].self, forKey: .trainingGoals)) ?? d.trainingGoals
     }
 }
 

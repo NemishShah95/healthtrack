@@ -74,6 +74,13 @@ enum MealRoutine {
 
     /// Zero, negative or non-numeric grams mean "no quantity given" rather than an error,
     /// so a typo never blocks logging a meal.
+    /// The grams dropdown.
+    static let gramOptions: [Double] = [10, 20, 25, 30, 40, 50, 60, 75, 80, 100, 120, 150, 175, 200, 250, 300, 350, 400, 500]
+    /// Offered in the food dropdown after your favourites and recent foods.
+    static let commonFoods = ["Oats", "Eggs", "Banana", "Apple", "Yogurt", "Milk", "Bread", "Rice", "Roti", "Dal",
+                              "Chicken", "Fish", "Paneer", "Tofu", "Salad", "Vegetables", "Pasta", "Poha", "Fruit", "Nuts",
+                              "Smoothie", "Coffee", "Tea"]
+
     static func cleanGrams(_ grams: Double?) -> Double? {
         guard let grams, grams.isFinite, grams > 0 else { return nil }
         return grams

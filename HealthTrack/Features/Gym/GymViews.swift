@@ -23,55 +23,60 @@ struct GymDetail: View {
         let end = Calendar.current.date(byAdding: .day, value: 1, to: day) ?? day
         let watch = health.snapshot.workouts.filter { $0.start >= day && $0.start < end }
         List {
-            Section {
-                Button("Log a session…", systemImage: "square.and.pencil") { editing = .new(day: day) }
-                if let last {
-                    Button {
-                        context.duplicate(last, at: Calendar.current.timestamp(on: day))
-                    } label: {
-                        Label("Repeat \(last.title) from \(last.timestamp.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))",
-                              systemImage: "arrow.clockwise")
-                    }
-                }
-            }
-            ForEach(sessions) { s in
+            Group {
                 Section {
-                    if s.sortedExercises.isEmpty { Text("No exercises noted.").foregroundStyle(.secondary) }
-                    ForEach(s.sortedExercises) { e in
-                        LabeledContent(e.name, value: e.parsed.summary)
+                    Button("Log a session…", systemImage: "square.and.pencil") { editing = .new(day: day) }
+                    if let last {
+                        Button {
+                            context.duplicate(last, at: Calendar.current.timestamp(on: day))
+                        } label: {
+                            Label("Repeat \(last.title) from \(last.timestamp.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))",
+                                  systemImage: "arrow.clockwise")
+                        }
                     }
-                    let volume = s.sortedExercises.compactMap(\.parsed.volumeKg).reduce(0, +)
-                    if volume > 0 { LabeledContent("Volume", value: "\(Int(volume).formatted()) kg") }
-                    if !s.notes.isEmpty { Text(s.notes).font(.callout).foregroundStyle(.secondary) }
-                    Button("Edit") { editing = .edit(s) }
-                } header: {
-                    Text("\(s.title) · \(s.timestamp.formatted(date: .omitted, time: .shortened))")
                 }
-            }
-            if !watch.isEmpty {
+                ForEach(sessions) { s in
+                    Section {
+                        if s.sortedExercises.isEmpty { Text("No exercises noted.").foregroundStyle(Palette.secondary) }
+                        ForEach(s.sortedExercises) { e in
+                            LabeledContent(e.name, value: e.parsed.summary)
+                        }
+                        let volume = s.sortedExercises.compactMap(\.parsed.volumeKg).reduce(0, +)
+                        if volume > 0 { LabeledContent("Volume", value: "\(Int(volume).formatted()) kg") }
+                        if !s.notes.isEmpty { Text(s.notes).font(.callout).foregroundStyle(Palette.secondary) }
+                        Button("Edit") { editing = .edit(s) }
+                    } header: {
+                        Text("\(s.title) · \(s.timestamp.formatted(date: .omitted, time: .shortened))")
+                    }
+                }
+                if !watch.isEmpty {
+                    Section {
+                        ForEach(Array(watch.enumerated()), id: \.offset) { _, w in
+                            LabeledContent(w.activityName, value: Format.duration(w.duration))
+                        }
+                    } header: {
+                        Text("From your watch")
+                    } footer: {
+                        Text("A journaled session and a watch workout on the same day count as one workout.")
+                    }
+                }
                 Section {
-                    ForEach(Array(watch.enumerated()), id: \.offset) { _, w in
-                        LabeledContent(w.activityName, value: Format.duration(w.duration))
-                    }
-                } header: {
-                    Text("From your watch")
-                } footer: {
-                    Text("A journaled session and a watch workout on the same day count as one workout.")
+                    NavigationLink("Gym history") { GymHistoryView() }
                 }
             }
-            Section {
-                NavigationLink("Gym history") { GymHistoryView() }
-            }
+            .appRows()
         }
+        .appScreen()
         .navigationTitle(Calendar.current.isDateInToday(day) ? "Gym" : "Gym · \(day.formatted(.dateTime.weekday(.abbreviated).day().month(.abbreviated)))")
         .sheet(item: $editing) { GymEditor(target: $0) }
     }
 }
 
-/// Add or edit a session: tap the areas trained, type exercises one per line.
+/// Add or edit a session: body parts and exercises from dropdowns, numbers from dropdowns. No typing.
 struct GymEditor: View {
     enum Target: Identifiable {
-        case new(day: Date)
+        /// `preset`: start with this exercise (logging against a training goal).
+        case new(day: Date, preset: ParsedExercise? = nil)
         case edit(GymSession)
 
         var id: String {
@@ -87,71 +92,60 @@ struct GymEditor: View {
     let target: Target
 
     @State private var focus: Set<BodyPart> = []
-    @State private var text = ""
+    @State private var exercises: [ParsedExercise] = []
     @State private var notes = ""
     @State private var time = Date()
-    @State private var recent: [String] = []
+    @State private var recent: [ParsedExercise] = []
     @State private var confirmDelete = false
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Focus") {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 8)], spacing: 8) {
-                        ForEach(BodyPart.allCases, id: \.self) { part in
-                            let on = focus.contains(part)
-                            Button(part.title) {
-                                if on { focus.remove(part) } else { focus.insert(part) }
-                            }
-                            .font(.subheadline)
-                            .frame(maxWidth: .infinity, minHeight: 36)
-                            .background(on ? Color.red : Color(.tertiarySystemFill), in: .capsule)
-                            .foregroundStyle(on ? Color.white : Color.primary)
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(on ? .isSelected : [])
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-
-                Section {
-                    TextField("Bench press 3x10 60 kg", text: $text, axis: .vertical)
-                        .lineLimit(4...14)
-                        .autocorrectionDisabled()
-                    if !suggestions.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack {
-                                ForEach(suggestions, id: \.self) { line in
-                                    Button(line) { add(line) }
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .font(.caption)
-                        }
-                    }
-                } header: {
-                    Text("Exercises")
-                } footer: {
-                    Text("One per line. Strength: sets x reps and weight, e.g. “Squat 5x5 100 kg”. Cardio: time and distance, e.g. “Treadmill 20 min 3 km”. Tap a recent one to repeat it.")
-                }
-
-                Section {
-                    DatePicker("Time", selection: $time)
-                    TextField("Notes", text: $notes, axis: .vertical)
-                }
-
-                if case .edit = target {
+                Group {
                     Section {
-                        Button("Delete session", role: .destructive) { confirmDelete = true }
+                        MultiSelectMenu(title: "Body parts", options: BodyPart.allCases, selection: $focus, label: \.title)
+                    } header: {
+                        Text("Focus")
+                    }
+
+                    Section {
+                        ForEach(Array(exercises.indices), id: \.self) { i in
+                            // Bounds-checked: a swipe-to-delete can redraw a row whose index is already gone.
+                            ExerciseRow(exercise: Binding(
+                                get: { exercises.indices.contains(i) ? exercises[i] : ParsedExercise(name: "") },
+                                set: { if exercises.indices.contains(i) { exercises[i] = $0 } }))
+                        }
+                        .onDelete { exercises.remove(atOffsets: $0) }
+                        NameMenu(title: "Exercise name", groups: menuGroups, pick: add) {
+                            Label("Add exercise", systemImage: "plus.circle.fill").foregroundStyle(Palette.lime)
+                        }
+                        .accessibilityLabel("Add exercise")
+                    } header: {
+                        Text("Exercises")
+                    } footer: {
+                        Text("Pick an exercise, then set its numbers. Your recent ones come first, with last time's numbers. Swipe left to remove one.")
+                    }
+
+                    Section {
+                        DatePicker("Time", selection: $time)
+                        TextField("Notes (optional)", text: $notes, axis: .vertical)
+                    }
+
+                    if case .edit = target {
+                        Section {
+                            Button("Delete session", role: .destructive) { confirmDelete = true }
+                        }
                     }
                 }
+                .appRows()
             }
+            .appScreen()
             .navigationTitle(isNew ? "Log gym session" : "Edit session")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Save", action: save).bold().disabled(focus.isEmpty && GymLog.parse(text).isEmpty)
+                    Button("Save", action: save).bold().disabled(focus.isEmpty && exercises.isEmpty)
                 }
             }
             .confirmationDialog("Delete this session?", isPresented: $confirmDelete, titleVisibility: .visible) {
@@ -166,33 +160,41 @@ struct GymEditor: View {
 
     private var isNew: Bool { if case .new = target { true } else { false } }
 
-    private var suggestions: [String] {
-        let typed = Set(GymLog.parse(text).map { $0.name.lowercased() })
-        return recent.filter { !typed.contains(GymLog.parseLine($0)?.name.lowercased() ?? "") }
+    /// Recent (with last time's numbers), then the catalogue for the chosen body parts, then everything else.
+    private var menuGroups: [(title: String, names: [String])] {
+        let ordered = ExerciseCatalog.names(for: orderedFocus)
+        let matching = orderedFocus.isEmpty ? [] : ordered.filter { name in ExerciseCatalog.entry(named: name).map { orderedFocus.contains($0.part) } ?? false }
+        let rest = ordered.filter { !matching.contains($0) }
+        return [("Recent", recent.map(\.name)),
+                (orderedFocus.isEmpty ? "Exercises" : orderedFocus.map(\.title).joined(separator: ", "), orderedFocus.isEmpty ? rest : matching),
+                ("More", orderedFocus.isEmpty ? [] : rest)]
     }
 
-    private func add(_ line: String) {
-        text = text.isEmpty || text.hasSuffix("\n") ? text + line : text + "\n" + line
+    private func add(_ name: String) {
+        exercises.append(recent.first { $0.name.caseInsensitiveCompare(name) == .orderedSame } ?? ExerciseCatalog.starter(name))
     }
 
-    /// Body-part order follows the chip order, not the order tapped.
+    /// Body-part order follows the list order, not the order tapped.
     private var orderedFocus: [BodyPart] { BodyPart.allCases.filter(focus.contains) }
 
     private func load() {
-        recent = context.recentExerciseLines()
+        recent = context.recentExercises()
         switch target {
-        case .new(let day):
+        case .new(let day, let preset):
             time = Calendar.current.timestamp(on: day)
+            if let preset {
+                exercises = [preset]
+                if let part = ExerciseCatalog.entry(named: preset.name)?.part { focus = [part] }
+            }
         case .edit(let s):
             focus = Set(s.focus)
-            text = s.sortedExercises.map(\.parsed.line).joined(separator: "\n")
+            exercises = s.sortedExercises.map(\.parsed)
             notes = s.notes
             time = s.timestamp
         }
     }
 
     private func save() {
-        let exercises = GymLog.parse(text)
         switch target {
         case .new:
             context.logGym(focus: orderedFocus, exercises: exercises, at: time, notes: notes)
@@ -209,6 +211,28 @@ struct GymEditor: View {
     }
 }
 
+/// An exercise name with a dropdown per number that makes sense for it.
+struct ExerciseRow: View {
+    @Binding var exercise: ParsedExercise
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(exercise.name).font(.body).foregroundStyle(Palette.text)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: 8) { menus }
+                VStack(alignment: .leading, spacing: 8) { menus }
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder private var menus: some View {
+        ForEach(exercise.visibleFields, id: \.self) { field in
+            NumberMenu(field: field, value: $exercise[dynamicMember: field.keyPath], accessibilityName: exercise.name)
+        }
+    }
+}
+
 struct GymHistoryView: View {
     @Query(sort: \GymSession.timestamp, order: .reverse) private var sessions: [GymSession]
     @State private var editing: GymEditor.Target?
@@ -218,13 +242,15 @@ struct GymHistoryView: View {
             ForEach(sessions) { s in
                 Button { editing = .edit(s) } label: {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(s.title).foregroundStyle(.primary)
+                        Text(s.title).foregroundStyle(Palette.text)
                         Text("\(s.timestamp.formatted(date: .abbreviated, time: .shortened)) · \(s.exercises.count) exercise\(s.exercises.count == 1 ? "" : "s")")
-                            .font(.caption).foregroundStyle(.secondary)
+                            .font(.caption).foregroundStyle(Palette.secondary)
                     }
                 }
             }
+            .appRows()
         }
+        .appScreen()
         .overlay { if sessions.isEmpty { ContentUnavailableView("No sessions yet", systemImage: "dumbbell") } }
         .navigationTitle("Gym history")
         .sheet(item: $editing) { GymEditor(target: $0) }
@@ -239,20 +265,23 @@ struct BodyPartFocusView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
-                Text(Self.summary(counts)).font(.subheadline).foregroundStyle(.secondary)
+                Text(Self.summary(counts)).font(.subheadline).foregroundStyle(Palette.secondary)
                 Chart(BodyPart.allCases, id: \.self) { part in
                     BarMark(x: .value("Sessions", counts[part] ?? 0), y: .value("Body part", part.title))
-                        .foregroundStyle(.red)
-                        .annotation(position: .trailing) { Text("\(counts[part] ?? 0)").font(.caption) }
+                        .foregroundStyle(Palette.lime.gradient)
+                        .cornerRadius(4)
+                        .annotation(position: .trailing) { Text("\(counts[part] ?? 0)").font(.caption).foregroundStyle(Palette.text) }
                 }
+                .chartXAxis { AxisMarks { _ in AxisGridLine().foregroundStyle(Palette.track); AxisValueLabel().foregroundStyle(Palette.secondary) } }
+                .chartYAxis { AxisMarks { _ in AxisValueLabel().foregroundStyle(Palette.text) } }
                 .frame(height: 320)
-                Text("Gym sessions that trained each area in the last \(days) days.").font(.caption).foregroundStyle(.secondary)
+                Text("Gym sessions that trained each area in the last \(days) days.").font(.caption).foregroundStyle(Palette.secondary)
             }
             .padding()
-            .background(Color(.secondarySystemGroupedBackground), in: .rect(cornerRadius: 16))
+            .card()
             .padding()
         }
-        .background(Color(.systemGroupedBackground))
+        .appScreen()
         .navigationTitle("Body part focus")
         .navigationBarTitleDisplayMode(.inline)
     }

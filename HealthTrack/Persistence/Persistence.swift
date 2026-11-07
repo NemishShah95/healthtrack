@@ -121,6 +121,18 @@ extension ModelContext {
         return entry
     }
 
+    /// Sources typed or picked before, newest first.
+    func recentProteinSources(limit: Int = 8) -> [String] {
+        var d = FetchDescriptor<ProteinEntry>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        d.fetchLimit = 200
+        var seen = Set<String>(), out: [String] = []
+        for e in (try? fetch(d)) ?? [] where !e.label.isEmpty && seen.insert(e.label.lowercased()).inserted {
+            out.append(e.label)
+            if out.count == limit { break }
+        }
+        return out
+    }
+
     func protein(from start: Date, to end: Date) -> [ProteinEntry] {
         let d = FetchDescriptor<ProteinEntry>(predicate: #Predicate { $0.timestamp >= start && $0.timestamp < end },
                                               sortBy: [SortDescriptor(\.timestamp)])
@@ -170,16 +182,42 @@ extension ModelContext {
         logGym(focus: session.focus, exercises: session.sortedExercises.map(\.parsed), at: timestamp, calendar: calendar)
     }
 
-    /// The last line typed for each recently used exercise, newest first — tap to repeat it.
-    func recentExerciseLines(limit: Int = 15) -> [String] {
+    /// The latest numbers for each recently used exercise, newest first: the top of the exercise dropdown.
+    func recentExercises(limit: Int = 15) -> [ParsedExercise] {
         var d = FetchDescriptor<GymExercise>(sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
         d.fetchLimit = 300
-        var seen = Set<String>(), lines: [String] = []
+        var seen = Set<String>(), out: [ParsedExercise] = []
         for e in (try? fetch(d)) ?? [] where seen.insert(e.name.lowercased()).inserted {
-            lines.append(e.parsed.line)
-            if lines.count == limit { break }
+            out.append(e.parsed)
+            if out.count == limit { break }
         }
-        return lines
+        return out
+    }
+
+    /// The gym journal as plain values, for training-goal progress.
+    func trainingLog() -> [(date: Date, exercises: [ParsedExercise])] {
+        let d = FetchDescriptor<GymSession>(sortBy: [SortDescriptor(\.timestamp)])
+        return ((try? fetch(d)) ?? []).map { ($0.timestamp, $0.sortedExercises.map(\.parsed)) }
+    }
+
+    // MARK: Training goals (stored inside Goals: no schema change)
+
+    func saveTrainingGoal(_ goal: TrainingGoal) {
+        let s = settings()
+        var goals = s.goals
+        if let i = goals.trainingGoals.firstIndex(where: { $0.id == goal.id }) {
+            goals.trainingGoals[i] = goal
+        } else {
+            goals.trainingGoals.append(goal)
+        }
+        s.goals = goals
+    }
+
+    func deleteTrainingGoal(id: UUID) {
+        let s = settings()
+        var goals = s.goals
+        goals.trainingGoals.removeAll { $0.id == id }
+        s.goals = goals
     }
 
     // MARK: Check-in
@@ -248,6 +286,18 @@ extension ModelContext {
         insert(log)
         log.supplement = supplement
         return log
+    }
+
+    /// "I took my Vitamin D" (Siri, or a tap): ticks today's open scheduled dose if there is one, otherwise
+    /// journals it as an extra. false for an accidental double log.
+    @discardableResult
+    func takeVitamin(_ supplement: Supplement, at timestamp: Date = .now, now: Date = .now, calendar: Calendar = .current) -> Bool {
+        let key = DayKey.of(timestamp, calendar: calendar)
+        if let dose = supplement.logs.first(where: { $0.day == key && !$0.isJournal && ($0.status == .pending || $0.status == .missed) }) {
+            setStatus(.taken, for: dose, at: timestamp)
+            return true
+        }
+        return logVitamin(supplement, at: timestamp, now: now, calendar: calendar) != nil
     }
 
     /// "As needed": removes the schedule and today's/future pending doses. Past history stays.

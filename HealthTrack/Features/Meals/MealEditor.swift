@@ -1,7 +1,7 @@
 import SwiftData
 import SwiftUI
 
-/// Add or edit a meal. Foods are optional: one per line, grams optional ("oats 80 g").
+/// Add or edit a meal. Foods are optional, picked from a dropdown, with grams from a dropdown.
 struct MealEditor: View {
     enum Target: Identifiable {
         /// New meal; `day` nil = now, `type` nil = guess from the clock.
@@ -24,7 +24,7 @@ struct MealEditor: View {
     @State private var type: MealType = .breakfast
     @State private var customName = ""
     @State private var time = Date()
-    @State private var foodsText = ""
+    @State private var foods: [ParsedFood] = []
     @State private var notes = ""
     @State private var rating = 0
     @State private var recent: [String] = []
@@ -32,56 +32,48 @@ struct MealEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Picker("Meal", selection: $type) {
-                    ForEach(MealType.allCases, id: \.self) { Text($0.rawValue.capitalized) }
-                }
-                if type == .custom { TextField("Name", text: $customName) }
-                DatePicker("Time", selection: $time)
-
-                Section {
-                    TextField("e.g. oats 80 g", text: $foodsText, axis: .vertical)
-                        .lineLimit(3...12)
-                        .textInputAutocapitalization(.never)
-                    if !suggestions.isEmpty {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack {
-                                ForEach(suggestions, id: \.self) { name in
-                                    Button { add(name) } label: {
-                                        Label(name, systemImage: favourites.contains(name) ? "star.fill" : "plus")
-                                    }
-                                    .contextMenu {
-                                        Button(favourites.contains(name) ? "Remove from favourites" : "Add to favourites",
-                                               systemImage: "star") { toggleFavourite(name) }
-                                    }
-                                }
-                            }
-                            .buttonStyle(.bordered)
-                            .font(.caption)
-                        }
+                Group {
+                    Picker("Meal", selection: $type) {
+                        ForEach(MealType.allCases, id: \.self) { Text($0.rawValue.capitalized) }
                     }
-                } header: {
-                    Text("Foods (optional)")
-                } footer: {
-                    Text("One per line. Add grams if you like: “banana 120 g”. Long-press a suggestion to favourite it.")
-                }
+                    if type == .custom { TextField("Name", text: $customName) }
+                    DatePicker("Time", selection: $time)
 
-                Section {
-                    TextField("Notes", text: $notes, axis: .vertical)
-                    Picker("How did it feel?", selection: $rating) {
-                        Text("—").tag(0)
-                        ForEach(1...5, id: \.self) { Text("\($0) / 5").tag($0) }
-                    }
-                }
-
-                if case .edit(let meal) = target {
                     Section {
-                        Button("Delete meal", role: .destructive) {
-                            context.delete(meal)
-                            dismiss()
+                        ForEach(Array(foods.indices), id: \.self) { i in
+                            if foods.indices.contains(i) { foodRow(i) }
+                        }
+                        .onDelete { foods.remove(atOffsets: $0) }
+                        NameMenu(title: "Food name", groups: foodGroups, pick: add) {
+                            Label("Add food", systemImage: "plus.circle.fill").foregroundStyle(Palette.lime)
+                        }
+                        .accessibilityLabel("Add food")
+                    } header: {
+                        Text("Foods (optional)")
+                    } footer: {
+                        Text("Grams are optional. Long-press a food to add it to your favourites. Swipe left to remove one.")
+                    }
+
+                    Section {
+                        TextField("Notes (optional)", text: $notes, axis: .vertical)
+                        Picker("How did it feel?", selection: $rating) {
+                            Text("—").tag(0)
+                            ForEach(1...5, id: \.self) { Text("\($0) / 5").tag($0) }
+                        }
+                    }
+
+                    if case .edit(let meal) = target {
+                        Section {
+                            Button("Delete meal", role: .destructive) {
+                                context.delete(meal)
+                                dismiss()
+                            }
                         }
                     }
                 }
+                .appRows()
             }
+            .appScreen()
             .navigationTitle(isNew ? "Add meal" : "Edit meal")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -94,14 +86,40 @@ struct MealEditor: View {
 
     private var isNew: Bool { if case .new = target { true } else { false } }
     private var favourites: [String] { settingsRows.first?.favoriteFoods ?? [] }
-    private var suggestions: [String] {
-        let typed = Set(MealRoutine.parseFoods(foodsText).map { $0.name.lowercased() })
-        var seen = Set<String>()
-        return (favourites + recent).filter { !typed.contains($0.lowercased()) && seen.insert($0.lowercased()).inserted }
+
+    private func foodRow(_ i: Int) -> some View {
+        let name = foods[i].name
+        return HStack {
+            Text(name).foregroundStyle(Palette.text)
+            Spacer()
+            Picker("\(name) grams", selection: Binding(
+                get: { foods.indices.contains(i) ? foods[i].grams : nil },
+                set: { if foods.indices.contains(i) { foods[i].grams = $0 } })) {
+                Text("No grams").tag(Double?.none)
+                ForEach(gramOptions(including: foods[i].grams), id: \.self) { Text("\(String(format: "%g", $0)) g").tag(Double?.some($0)) }
+            }
+            .labelsHidden()
+        }
+        .contextMenu {
+            Button(favourites.contains(name) ? "Remove from favourites" : "Add to favourites", systemImage: "star") { toggleFavourite(name) }
+        }
+    }
+
+    /// Favourites, then recent, then common foods; each name appears once.
+    private var foodGroups: [(title: String, names: [String])] {
+        let fav = uniqueNames(favourites)
+        let rec = uniqueNames(recent).filter { r in !fav.contains { $0.caseInsensitiveCompare(r) == .orderedSame } }
+        let common = MealRoutine.commonFoods.filter { c in !(fav + rec).contains { $0.caseInsensitiveCompare(c) == .orderedSame } }
+        return [("Favourites", fav), ("Recent", rec), ("Common", common)]
+    }
+
+    private func gramOptions(including current: Double?) -> [Double] {
+        guard let current, !MealRoutine.gramOptions.contains(current) else { return MealRoutine.gramOptions }
+        return (MealRoutine.gramOptions + [current]).sorted()
     }
 
     private func add(_ name: String) {
-        foodsText = foodsText.isEmpty || foodsText.hasSuffix("\n") ? foodsText + name : foodsText + "\n" + name
+        foods.append(ParsedFood(name: name, grams: nil))
     }
 
     private func toggleFavourite(_ name: String) {
@@ -129,13 +147,12 @@ struct MealEditor: View {
         type = meal.mealType
         customName = meal.customName ?? ""
         time = meal.timestamp
-        foodsText = meal.sortedFoods.map { ParsedFood(name: $0.foodName, grams: $0.grams).line }.joined(separator: "\n")
+        foods = meal.sortedFoods.map { ParsedFood(name: $0.foodName, grams: $0.grams) }
         notes = meal.notes
         rating = meal.qualityRating ?? 0
     }
 
     private func save() {
-        let foods = MealRoutine.parseFoods(foodsText)
         let meal: Meal
         switch target {
         case .new:

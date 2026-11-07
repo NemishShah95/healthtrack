@@ -4,12 +4,12 @@
 
 ```text
 HealthTrack/
-├── App/            App entry, tab bar, dependency wiring                   (M1)
+├── App/            App entry, tab bar, dependency wiring, Siri/Shortcuts actions
 ├── Core/           Pure logic, Foundation only: no SwiftUI/SwiftData/HealthKit   ✅
 ├── Health/         HealthKit reading behind a protocol, plus a mock provider (M3)
 ├── Persistence/    SwiftData models, container, export/import service  (M2, M15)
-├── Features/       Today · Log · Trends · Weekly · Settings (and their sub-screens)
-└── Shared/         Reusable views, design tokens, chart helpers
+├── Features/       Today · Training · Trends · Weekly · Settings (and their sub-screens)
+└── Shared/         Theme (design tokens), dropdowns, reusable views
 ```
 
 Rules:
@@ -28,7 +28,8 @@ Deviations from the spec's suggested tree:
 
 Minimal by design: summary first, details one tap away, logging never more than one tap.
 
-- **Today**: the date strip shows today and the previous 5 days (swipe or tap) so forgotten entries can be back-filled. Below it are the consistency ring and tiles for Sleep, Water, Meals, Protein, Gym, Supplements, Steps and Check-in. Each tile shows one value and at most one quick action (+250, + Dinner, All ✓). Tapping anywhere else opens that day's full page.
+- **Today**: the week strip shows today and the previous 6 days (swipe or tap), each with a bar for that day's consistency, so forgotten entries can be back-filled. A sync pill, then a bento: Sleep (with the stage chart) beside Steps and the consistency ring, habit tiles (Water, Meals, Protein, Vitamins, Recovery, Check-in) and a Workouts list. Each card shows one value and at most one quick action (+250, + Lunch, All ✓, + Log). Tapping anywhere else opens that day's full page.
+- **Training**: training goals with this week's progress, the last 8 weeks and streaks; milestones with the best attempt; recent sessions, gym history and body-part focus.
 - **Trends**: one row per metric (summary + sparkline), grouped Sleep / Recovery / Activity / Habits. Tap a row for the full chart.
 - **Weekly**: ring, best habit, what to watch, four key numbers. "Full breakdown" holds every number. The current week counts finished days only.
 - **Settings**: goals, supplements, reminders, Apple Health status, Data & Backup, App Installation, Privacy.
@@ -43,16 +44,42 @@ Deviation from the spec: there is no **Log** tab (product owner's decision, 2026
 
 ## Gym journal and protein
 
-- **Gym session**: body-part focus (chips), exercises typed one per line, plus notes. `GymLog.parse` reads `Bench press 3x10 60 kg`, `Pull-ups 3 sets 12 reps`, `Treadmill 20 min 3 km`, `Run 5k`. Pounds and miles are converted to kg and km. Volume = sets × reps × kg.
+- **Gym session**: body parts and exercises picked from dropdowns, with each number from a dropdown. Recent exercises come first, pre-filled with last time's numbers. `GymLog.parse` (typed lines such as `Bench press 3x10 60 kg`, `Run 5k`; pounds and miles converted) is kept for sample data and older text. Volume = sets × reps × kg.
 - **Counting workouts**: per day, workouts = **max**(watch workouts, journaled sessions). A gym visit that the watch also recorded counts once; a session only in the journal still counts. This feeds the Exercise score, Weekly and Trends.
 - **Protein**: a daily gram counter with quick-add buttons and a user-set target. It's tracked in Today, Trends and Weekly but **not** part of the consistency score; the spec's weights are unchanged.
+
+## Training goals (`Core/Training.swift`)
+
+- A goal is an exercise plus target numbers (any of sets, reps, weight, time, distance) and a frequency: 1–7 days a week, or 0 for a one-off milestone.
+- A logged gym-journal exercise **meets** a goal when the names match (ignoring case and spaces) and every target number is reached. Progress for one entry = the weakest target ratio, capped at 1.
+- Weekly goals count **days** with a met entry in the calendar week. A week is "met" at `timesPerWeek` days. The streak counts consecutive met weeks back from now, and the unfinished current week never breaks it.
+- Milestones record the first day met, and otherwise the best attempt (0–100%).
+- Goals are stored in `Goals.trainingGoals` (JSON inside `AppSettings.goalsData`), so they needed no schema change, are in every backup, and old settings decode with no goals.
+- The exercise catalogue (`ExerciseCatalog`) drives the dropdowns: each exercise has a kind (strength, bodyweight, timed, cardio) that decides which numbers are offered. Names typed in the past get a kind guessed from their numbers.
+
+## Your usual range (`Core/Baseline.swift`)
+
+- For HRV and resting heart rate: median ± 1.4826 × MAD of the **30 days before** the day (the day itself is excluded), at least 3% of the median wide, and only once there are **7 days** of data. One odd night barely moves it, unlike an average.
+- Shown on Today (Recovery tile: usual / above / below), on the Sleep page, and as a band on the HRV and resting-HR trend charts.
+
+## Watch sync check (`DataFreshness`)
+
+Sleep and HRV come only from the watch (the iPhone counts steps itself). If the newest of those is older than yesterday, the Today pill turns amber with "No watch data since … Open Zepp to sync". It never shows before any data has arrived; Settings → Apple Health covers that.
+
+## Siri and Shortcuts (`App/Intents.swift`)
+
+App Intents for water (250/500/750 ml), protein (10/20/30 g), a meal (breakfast/lunch/dinner/snack) and a vitamin (your active vitamins, refreshed on every launch). They run in the app process on the same `ModelContainer` the screens use (`AppStore.container`), so a voice log appears immediately. They share the double-tap guards. A vitamin ticks today's open scheduled dose first, otherwise it's journaled as an extra.
+
+## Look and input
+
+Dark-only design by the product owner; tokens in `Shared/Theme.swift`, full spec in README → Design. Surfaces are opaque because Apple's accessibility audit can't measure contrast through translucent ones. Every choice is a dropdown (`Shared/Pickers.swift`: multi-select, number and name menus with "Other…"). Only notes and new names are typed.
 
 ## Source of truth
 
 | Data | Owner | Notes |
 | --- | --- | --- |
 | Sleep, heart rate, resting HR, HRV, steps, workouts, active energy, distance, exercise time, weight, SpO₂ | **Apple Health (HealthKit)** | Read-only, queried on demand, never copied into SwiftData |
-| Meals, food entries, saved meals, favourites, water, protein, gym sessions and exercises, supplements, schedules, supplement logs, check-ins, goals, settings, reinstall metadata, export metadata | **SwiftData** (on device) | Included in JSON backups |
+| Meals, food entries, saved meals, favourites, water, protein, gym sessions and exercises, supplements, schedules, supplement logs, check-ins, goals (including training goals), settings, reinstall metadata, export metadata | **SwiftData** (on device) | Included in JSON backups |
 
 ## Sleep methodology (`Core/SleepAggregator.swift`)
 
@@ -94,6 +121,7 @@ Defaults: bedtime 23:00, wake 07:00, ±30 min, 7 h sleep, 2.5 L water, 8,000 ste
 - HRV and resting-HR trends compare this week's mean with last week's. A change within ±5% is "stable"; with fewer than 3 values per week no trend is shown.
 - **Best habit** = the component with the highest weekly average.
 - **Needs attention** = up to two other components averaging below 70%, lowest first.
+- **Experiment**: one habit-level suggestion for next week, aimed at the first "needs attention" habit (or "keep it steady" when nothing needs attention). It's a fixed sentence per habit, checked by tests against the same banned causal and diagnostic words as insights.
 
 ## Insights (`Core/Trends.swift`)
 
