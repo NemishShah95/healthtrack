@@ -59,7 +59,7 @@ Prefer:
 
 # 2. Critical Deployment Constraint
 
-The development Mac cannot connect to the user's iPhone because of corporate USB/device restrictions.
+The development Mac may not be able to connect to the user's iPhone, so the project must not depend on it.
 
 Therefore:
 

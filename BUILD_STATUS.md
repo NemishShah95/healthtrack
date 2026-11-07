@@ -3,7 +3,7 @@
 _Last updated: 2026-11-07_
 
 ## Current Milestone
-M18, Personal installation: **complete.** Installed on the product owner's iPhone 16 Pro on 2026-11-01 (from the work Mac, with their personal Apple Account).
+M18, Personal installation: **complete.** Installed on the product owner's iPhone 16 Pro on 2026-11-01 (with their personal Apple Account).
 Next: M19, real data validation against Apple Health.
 
 ## On the iPhone
@@ -102,6 +102,6 @@ Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2):
 M19: compare HealthTrack with the Apple Health app (sleep, deep, REM, HRV, resting HR, steps, latest workout) once a night of real data has synced.
 Refresh before **Fri 13 Nov** from any Mac signed in with the **same** Apple Account. Don't delete the app. If Xcode keeps the old expiry, see the note in [FREE_PROVISIONING_REFRESH.md](Documentation/FREE_PROVISIONING_REFRESH.md).
 
-Notes from the install: the work Mac's login keychain was reset during setup (the old file is kept as `login_renamed_1.keychain-db`); the first development certificate was revoked and a new one created.
+Notes from the install: the first development certificate was revoked and a new one created.
 
 Notes from the 2026-11-07 refresh: Xcode had been signed out of the Apple Account, so builds silently reused the cached profile (same expiry). After signing back in, the cached profile was set aside and `xcodebuild -allowProvisioningUpdates` fetched a new one (expires 14 Nov).
