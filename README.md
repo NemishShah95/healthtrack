@@ -1,3 +1,5 @@
+<p align="center"><img src="Design/logo.png" alt="HealthTrack icon: a lime progress ring around a teal crescent moon on dark navy" width="128"></p>
+
 # HealthTrack
 
 A private, single-user iPhone app for daily health and habit tracking. It answers three questions:
@@ -66,6 +68,14 @@ _As of 2026-11-07. Live details: [BUILD_STATUS.md](BUILD_STATUS.md)._
 
 Designed by **Nemish Shah**. The direction: calm, minimal and dark, with one number per card and nothing you don't need. Tokens live in [`HealthTrack/Shared/Theme.swift`](HealthTrack/Shared/Theme.swift).
 
+### Icon
+
+A lime progress ring for your daily habits around a teal crescent moon for sleep, on the app's navy background. The ring is three-quarters full, and a glowing dot marks its tip, like the Steps orbit.
+
+- **Size:** 1024 × 1024, full bleed and opaque; iOS rounds the corners.
+- **Source:** drawn by [`Design/make-icon.py`](Design/make-icon.py) (`python3 Design/make-icon.py night out.png`). The other options are `orbit` (ring only) and `pulse` (ring with a heartbeat line).
+- **README logo:** [`Design/logo.png`](Design/logo.png), 256 px with rounded corners.
+
 ### Colour
 
 The app is dark-only. Surfaces are opaque so contrast can be measured. Body text is at least 9:1 on cards; secondary text is at least 6.8:1, even on the brightest glow.
@@ -127,7 +137,7 @@ At accessibility text sizes everything stacks in one column. Other screens are i
 - **Product, design and daily use:** Nemish Shah.
 - **Code:** written with Claude (Anthropic).
 - **Borrowed ideas:** usual-range baselines, the watch sync check, the backup check, voice logging, the weekly experiment and CI come from [Helios](https://github.com/ShashankKarpal/helios) by Shashank Karpal (MIT). Ideas only; no code was copied.
-- **Licence:** the source code is released under the [MIT License](LICENSE).
+- **Licence:** the source code is released under the [MIT License](LICENSE). The design, app icon and logo are **not** covered: they're © Nemish Shah, all rights reserved. See [TRADEMARKS.md](TRADEMARKS.md).
 
 ## For developers
 
@@ -146,10 +156,12 @@ At accessibility text sizes everything stacks in one column. Other screens are i
 ├── HealthTrackTests/          Unit tests (Swift Testing)
 ├── HealthTrackUITests/        UI, accessibility-audit and screenshot tests
 ├── Scripts/                   backup-from-iphone.sh
+├── Design/                    App icon script and README logo (not MIT, see TRADEMARKS.md)
 ├── Documentation/             Original build spec and the refresh procedure
 ├── .github/workflows/         `swift test` on every push
 ├── Package.swift              Lets `swift test` run logic and database tests without a simulator
-├── LICENSE                    MIT
+├── LICENSE                    MIT, for the code
+├── TRADEMARKS.md              Design and brand assets: all rights reserved
 └── *.md                       Status, architecture, test plan, data safety, install guide
 ```
 

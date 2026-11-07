@@ -61,7 +61,8 @@ Simulator (`xcodebuild test -parallel-testing-enabled NO`, iPhone 17, iOS 27.2):
 | Look | Dark-only redesign (2026-11-07) from the product owner's design: navy-to-teal gradient, opaque dark cards, light-weight numbers, lime accents, teal for sleep. Full spec in README → Design |
 | Input | Dropdowns for every choice (product owner, 2026-11-07); typing only for notes and "Other…" names. One-tap buttons stay |
 | Training | A Training tab: goals per exercise (distance, sets × reps, weight or time), weekly (1–7×) or one-off milestones; met by gym-journal entries. Stored in `Goals` (no schema change) |
-| Licence | MIT for the code; design credited to the product owner in the README |
+| Licence | MIT for the code. Design, app icon and logo excluded: © Nemish Shah, all rights reserved (TRADEMARKS.md) |
+| App icon | Lime habit ring around a teal crescent moon on navy (2026-11-07), drawn by `Design/make-icon.py`; replaces the first green ring-and-tick icon |
 | Gym journal | Focus chips + exercises one per line ("Squat 5x5 100 kg", "Treadmill 20 min 3 km"); counts as a workout without double counting the watch |
 | Protein | Daily counter (+10/+20/+30 g), user-set target (default 100 g), not part of the consistency score |
 | Devices | iOS 17+, so iPhone 16 Pro (product owner), 17 and 17 Pro; all the same size as the tested iPhone 17 |
